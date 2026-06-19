@@ -1,185 +1,106 @@
 # NeuroCUDA
 
-> **One-line API for PyTorch → Neuromorphic deployment.**
->
-> Write standard PyTorch. Run on brain-like chips. Zero spiking expertise needed.
+**A PyTorch-to-neuromorphic compiler: ANN→SNN conversion, NIR export, NeuroBench reporting.**
 
-[![Status](https://img.shields.io/badge/status-alpha-orange)](https://github.com/neurocuda/neurocuda)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10%2B-green)]()
+One pipeline. Standard formats. Every number measured and labeled.
+
+---
+
+## Verified Results
+
+### Conversion Accuracy (Gate 3)
+
+| Model | ANN | SNN (T=32) | Gap | Seeds | Test Set |
+|-------|-----|------------|-----|-------|----------|
+| ResNet-18 / CIFAR-10 | ~95% | ~94% | **0.95% ± 0.14%** | 3 | Full 10K |
+| MLP / MNIST | 97.8% | 97.4% | 0.4% | 1 | Full 10K |
+
+### Efficiency (Gate 5 — NeuroBench Algorithm Track)
+
+| Metric | Value | Note |
+|--------|-------|------|
+| Activation Sparsity | **93.7%** | Measured at T=32, 10K test set |
+| Effective Operations | **870M** | vs 15.4B dense — 94% reduction |
+| Operations Type | MACs | Graded output (QCFS `[0,λ]` range, not binary) |
+| Footprint (float32) | 44.7 MB | GPU / CPU |
+| Footprint (8-bit) | 11.2 MB | Modeled for Loihi 2, not silicon |
+
+*Efficiency is from sparsity: 93.7% of activations are zero at each timestep, so 94% of operations are skipped. The IF neurons emit graded values (spike × threshold), so surviving operations count as MACs — the advantage is quantity, not op-type. Eff_ACs = 0.*
+
+### NIR Export (Round-Trip Verified)
+
+| Model | Write | Read | Execute | Accuracy Δ | Status |
+|-------|-------|------|---------|------------|--------|
+| MLP / MNIST | ✅ | ✅ | ✅ | 0.000000 | Bit-exact |
+| ResNet / CIFAR-10 | ✅ | ✅ | ✅ | 0.01% | Functionally exact |
+
+*Full 10K test set, CPU deterministic + GPU, custom Kahn-topology executor (NIRTorch's built-in executor skips branched/residual models).*
+
+### Multi-Backend Validation
+
+| Backend | Spike Deviation | Status |
+|---------|----------------|--------|
+| GPU (PyTorch) | Reference | Production |
+| CPU (PyTorch) | 0/256K | Verified |
+| Loihi 2 (simulator) | 0/256K | Bit-accurate |
+
+*Loihi 2: Intel's bit-accurate Lava simulator, NOT physical silicon. Labeled accordingly.*
+
+---
+
+## Install
+
+```bash
+git clone https://github.com/neurocuda/neurocuda
+cd neurocuda
+pip install -r requirements.txt
+```
+
+Requirements: `torch>=2.0`, `numpy`, `nir`, `nirtorch`, `neurobench`, `torchvision`
+
+---
+
+## Quickstart
 
 ```python
-import neurocuda as nc
+from models import resnet18_cifar, QCFS, build_snn_from_qcfs
+from nir_export import export_resnet_to_nir
 
-# Load any PyTorch model
-model = torch.load("my_model.pt")
+# Load a QCFS-trained model and convert to SNN
+qmodel = resnet18_cifar(lambda: QCFS(L=8))
+qmodel.load_state_dict(torch.load("checkpoints/qcfs_resnet18_seed0.pt")["state_dict"])
+snn = build_snn_from_qcfs(qmodel)
 
-# Convert to spiking neural network
-snn, meta = nc.convert(model, calibration_loader)
-
-# Fine-tune for best accuracy
-snn = nc.finetune(snn, train_loader, epochs=3)
-
-# Deploy to neuromorphic hardware
-nc.compile(snn, target="loihi3")
+# Export to NIR (the field's standard SNN format)
+nir_graph = export_resnet_to_nir(snn, "my_model.nir")
 ```
 
----
-
-## Why NeuroCUDA
-
-Neuromorphic chips (Intel Loihi 3, BrainChip Akida, IBM NorthPole) are **100-1000× more energy efficient** than GPUs for inference. But they speak "spikes" — and only ~1,000 researchers worldwide can program them. Every chip uses a different SDK with PhD-level learning curves.
-
-**NeuroCUDA bridges 12M+ PyTorch developers to neuromorphic hardware.** Write standard models. Get spiking equivalents automatically. Deploy to any chip with one line.
-
----
-
-## How It Works
-
-```
-PyTorch ANN  →  BN Fold  →  Threshold Calibrate  →  ReLU→LIF  →  Fine-tune  →  Deploy
-                                                       │
-                                              One-line compile()
-                                              Loihi / Akida / SpiNNaker
-```
-
-1. **Fold BatchNorm** into Conv weights (eliminates BN at runtime)
-2. **Calibrate thresholds** from ReLU activations (95th percentile per layer)
-3. **Replace ReLU → IF neurons** (Integrate-and-Fire with subtractive reset)
-4. **Fine-tune** the converted SNN with surrogate gradients (3 epochs)
-5. **Deploy** to target backend through unified compiler API
-
----
-
-## Benchmarks
-
-| Benchmark | Method | Accuracy | Gap | Status |
-|-----------|--------|----------|-----|--------|
-| MLP / MNIST | Convert | 97.4% | **0.39%** | ✅ Best-in-class |
-| CNN / CIFAR-10 | Convert + Fine-tune | 69.1% | **5.2%** | ✅ Competitive |
-| CNN / CIFAR-10 | Direct SNN | 67.1% | 7.1% | ✅ Zero convert |
-
-**Energy: ~78× less than GPU inference** (theoretical, on neuromorphic hardware)
-
----
-
-## Hardware Validation
-
-| Test | Result | Platform |
-|------|--------|----------|
-| Neuron equivalence | **0/100K diffs** | Loihi 2 mathematical model |
-| 8-bit quantization | **+1.6% BETTER** | Loihi 2 silicon precision |
-| 6-bit quantization | **+0.8%** | Robust to aggressive quantization |
-| BN folding | **0.00% loss** | Exact equivalence proof |
-
-**Our SNNs perform marginally BETTER at Loihi 2 hardware precision.** 8-bit quantization acts as regularization — a known phenomenon in spiking networks.
-
----
-
-## Quick Start
-
-### Install
+Or run the full NeuroBench report:
 ```bash
-pip install neurocuda
-# Requirements: torch>=2.0, snntorch>=0.9, numpy
+python gate5_neurobench.py --seeds 0 --T 32
 ```
 
-### Convert Your First Model
-```python
-import torch, neurocuda as nc
-from torch.utils.data import DataLoader
+---
 
-# Your trained PyTorch model (any architecture with ReLU)
-model = YourModel()
-model.eval()
+## Reproduce Our Results
 
-# Calibration data (1000-5000 samples, just inputs)
-calib_loader = DataLoader(calib_dataset, batch_size=128)
+Every number in this README is regenerable. The benchmark scripts live in `benchmarks/`.
 
-# Convert
-snn, meta = nc.convert(model, calib_loader, percentile=95.0, T=64)
-print(f"Converted {meta['num_layers']} layers. Thresholds: {meta['thresholds']}")
-
-# Fine-tune for best accuracy
-snn = nc.finetune(snn, train_loader, epochs=3)
-
-# Run inference
-output = snn(input_data)  # Returns accumulated spikes over T timesteps
-```
-
-### Run the Demo
 ```bash
-python examples/demo.py
+# Gate 3: QCFS conversion training (requires ANN checkpoints)
+python gate3_qcfs_convert.py --seed 0 --epochs 30
+
+# Gate 5: NeuroBench algorithm-track report
+python gate5_neurobench.py --seeds 0 1 2 --T 32
+
+# NIR round-trip verification
+python verify_nir_trained.py --seed 0
+
+# Loihi 2 bit-accurate validation
+python tests/test_loihi_bitaccurate.py
 ```
 
-Output:
-```
-NEUROCUDA v0.1 — END-TO-END DEMO
-============================================================
-  ANN Accuracy:          74.3%
-  SNN (converted):       60.7%  (gap 13.7%)
-  SNN (fine-tuned):      69.1%  (gap 5.2%)
-  Fine-tuning gain:      +8.4%
-  ANN-SNN agreement:     8/10
-  Energy vs GPU:         ~78x
-  Pipeline:              ✅ WORKING
-```
-
----
-
-## Architecture
-
-```
-NeuroCUDA Compiler
-├── Frontend         PyTorch models (any architecture with ReLU)
-│
-├── Converter        ANN→SNN conversion (BN fold + calibrate + LIF replace)
-│   ├── Path A       Convert pre-trained ANN (0.4-13% gap, documented)
-│   └── Path B       Train SNN directly with surrogate gradients (0% gap)
-│
-├── Fine-tuner       Post-conversion surrogate gradient optimization
-│
-├── IR               Neuromorphic Intermediate Representation (NIR-compatible)
-│
-└── Backends         Multi-target code generation
-    ├── GPU/CPU       snnTorch simulator (working)
-    ├── Loihi 2       Intel Lava / NetX (validated — 8-bit quant ready)
-    ├── Akida         BrainChip MetaTF (planned)
-    └── SpiNNaker     Manchester sPyNNaker (planned)
-```
-
----
-
-## API Reference
-
-### `neurocuda.convert(model, calib_loader, percentile=95.0, T=64, device="cuda")`
-Convert trained ANN to SNN. Returns `(snn_model, metadata)`.
-
-### `neurocuda.finetune(snn_model, train_loader, epochs=3, device="cuda")`
-Fine-tune converted SNN with surrogate gradients. Returns optimized SNN.
-
-### `neurocuda.utils.energy_estimate(model)`
-Theoretical energy comparison: ANN (GPU, 50 pJ/FLOP) vs SNN (Loihi, 0.1 pJ/spike).
-
-### `neurocuda.converter.fold_batchnorm(model)`
-Fold all BatchNorm layers into preceding Conv weights. Sets BN to identity.
-
----
-
-## Project Status
-
-**v0.1 (June 2026)** — Alpha release. Core conversion proven. Hardware compatibility validated.
-
-| Component | Status |
-|-----------|--------|
-| ANN→SNN conversion | ✅ Working |
-| Post-conversion fine-tuning | ✅ Working |
-| Direct SNN training | ✅ Working |
-| Energy estimation | ✅ Working |
-| Loihi 2 validation | ✅ Bit-accurate |
-| Akida backend | 🟡 Planned |
-| SpiNNaker backend | 🟡 Planned |
-| Model hub | 🟡 Planned |
+Committed result tables are in `results/`. See `benchmarks/reproduce.sh` for the full reproduction pipeline.
 
 ---
 
@@ -187,48 +108,51 @@ Fold all BatchNorm layers into preceding Conv weights. Sets BN to identity.
 
 ```
 neurocuda/
-├── neurocuda/           # Python package
-│   ├── __init__.py      # Public API (convert, finetune)
-│   ├── converter.py     # ANN→SNN conversion engine
-│   ├── finetune.py      # Post-conversion fine-tuning
-│   └── utils.py         # Energy estimation, BN folding
-├── examples/
-│   ├── demo.py          # End-to-end working demo (5 min)
-│   └── validate.py      # 7-test validation suite
-├── tests/
-│   ├── test_lava_equivalence.py      # Loihi neuron proof
-│   └── test_loihi_bitaccurate.py     # 8-bit quantization proof
-├── README.md
-├── LICENSE              # MIT
-├── setup.py
-└── requirements.txt
+├── neurocuda/              # Package (in progress)
+├── models.py               # ResNet-18, IFNeuron, QCFS
+├── nir_export.py           # ANN/NIR export pipeline
+├── nir_executor.py         # Custom Kahn-topology NIR executor
+├── gate3_qcfs_convert.py   # QCFS conversion training
+├── gate5_neurobench.py     # NeuroBench reporting
+├── verify_nir_trained.py   # End-to-end NIR verification
+├── benchmarks/             # Reproduction scripts
+├── results/                # Committed output tables
+├── checkpoints/            # Model checkpoints
+├── tests/                  # Validation suite
+└── examples/               # Demo scripts
 ```
 
 ---
 
-## Why This Exists
+## What This Is
 
-```
-Neuromorphic in 2026 = GPU in 2006.
-Hardware exists. Nobody can program it.
-CUDA didn't exist yet. NVIDIA was worth $10B.
-Then CUDA. Now NVIDIA is worth $3.5T.
+NeuroCUDA is a **systems/tooling contribution**: a single open-source pipeline that ties together PyTorch→SNN conversion, NIR export, and NeuroBench reporting. The individual pieces (QCFS, NIR, NeuroBench) are published work by other groups. What's uncommon is the **integration** — one tool that does all three, verified honestly, with documented limitations.
 
-NeuroCUDA = CUDA for neuromorphic computing.
-The standard compiler for the next paradigm.
-```
+It is **not** a claim of novel science per component. It is a claim that the neuromorphic ecosystem needs a compiler, and this is one working, honest seed.
 
 ---
 
-## Citation
+## Honesty Rules
 
-```bibtex
-@software{neurocuda2026,
-  title = {NeuroCUDA: A Multi-Backend Neuromorphic Compiler},
-  year = {2026},
-  url = {https://github.com/neurocuda/neurocuda}
-}
-```
+- Every number measured on full test set (10K images), ≥3 seeds where stated
+- Sparsity ≠ accuracy. 93.7% is sparsity, stated separately from accuracy
+- Loihi 2 numbers are simulator-validated, labeled "modeled"
+- NIR export verified end-to-end (write → read → rebuild → compare)
+- "Proven" means the number is reproducible by anyone running the script
+
+---
+
+## Project Status (June 2026)
+
+| Gate | Description | Status |
+|------|-------------|--------|
+| GATE 1 | Ground truth baselines | ✅ |
+| GATE 2 | ANN ResNet-18 ≥93% | ✅ |
+| GATE 3 | QCFS converter (0.95% gap) | ✅ |
+| GATE 4 | Methods re-tested | ✅ |
+| GATE 5 | NeuroBench reporting | ✅ |
+| NIR | Round-trip proven | ✅ |
+| GATE 6 | Ship | ⬜ |
 
 ---
 
@@ -236,6 +160,12 @@ The standard compiler for the next paradigm.
 
 MIT — see [LICENSE](LICENSE)
 
----
+## Citation
 
-*Built from Amravati, India. One developer. One laptop. No funding. Just the conviction that the next computing paradigm needs a Python compiler.*
+```bibtex
+@software{neurocuda2026,
+  title = {NeuroCUDA: A PyTorch-to-Neuromorphic Compiler with NIR Export and NeuroBench Reporting},
+  year = {2026},
+  url = {https://github.com/neurocuda/neurocuda}
+}
+```

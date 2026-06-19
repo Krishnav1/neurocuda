@@ -18,10 +18,13 @@ env/
 *.tar.gz
 data/
 
-# Results
+# Results and large artifacts
 demo_results.json
 results_*.json
 *.log
+*.nir
+NEUROCUDA_AGENT_BRIEF.md
+files.zip
 
 # IDE
 .vscode/
