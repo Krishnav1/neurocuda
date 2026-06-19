@@ -1,0 +1,106 @@
+{
+  "pipeline": "NeuroCUDA \u2192 NIR \u2192 SC-NeuroCore \u2192 HLS \u2192 FPGA",
+  "timestamp": "2026-06-19 18:35:56",
+  "model": "neurocuda_fpga_demo",
+  "T": 64,
+  "nir": {
+    "num_nodes": 10,
+    "num_edges": 9,
+    "nodes": [
+      "input",
+      "conv1",
+      "lif1",
+      "conv2",
+      "lif2",
+      "conv3",
+      "lif3",
+      "pool",
+      "fc",
+      "output"
+    ],
+    "edges": [
+      [
+        "input",
+        "conv1"
+      ],
+      [
+        "conv1",
+        "lif1"
+      ],
+      [
+        "lif1",
+        "conv2"
+      ],
+      [
+        "conv2",
+        "lif2"
+      ],
+      [
+        "lif2",
+        "conv3"
+      ],
+      [
+        "conv3",
+        "lif3"
+      ],
+      [
+        "lif3",
+        "pool"
+      ],
+      [
+        "pool",
+        "fc"
+      ],
+      [
+        "fc",
+        "output"
+      ]
+    ]
+  },
+  "hls": {
+    "lines": 82,
+    "size_bytes": 2175,
+    "tool": "Xilinx Vitis HLS",
+    "data_width": 16,
+    "fraction": 8,
+    "equations": {
+      "input": "-(v) / 10.0 + I",
+      "conv1": "-(v) / 10.0 + I",
+      "lif1": "-(v - v_rest) / 64.0 + I",
+      "conv2": "-(v) / 10.0 + I",
+      "lif2": "-(v - v_rest) / 64.0 + I",
+      "conv3": "-(v) / 10.0 + I",
+      "lif3": "-(v - v_rest) / 64.0 + I",
+      "pool": "-(v) / 10.0 + I",
+      "fc": "-(v) / 10.0 + I",
+      "output": "-(v) / 10.0 + I"
+    }
+  },
+  "hdl": {
+    "error": "'NIRGraph' object has no attribute 'populations'"
+  },
+  "simulation": {
+    "method": "Python C-model (bit-equivalent to HLS C++)",
+    "timesteps": 64,
+    "active_neurons": 10,
+    "total_spikes": 175,
+    "verified": true
+  },
+  "fpga": {
+    "target_device": "Xilinx Artix-7 XC7A35T (PYNQ-Z2 equivalent)",
+    "lut_estimate": 5800,
+    "lut_total": 20800,
+    "lut_pct": 27.9,
+    "ff_estimate": 3480,
+    "ff_total": 41600,
+    "ff_pct": 8.4,
+    "bram_estimate": 36,
+    "bram_total": 50,
+    "dsp_estimate": 9,
+    "dsp_total": 90,
+    "power_mw": 92.8,
+    "frequency_mhz": 100,
+    "ns_per_neuron": 10,
+    "methodology": "Calibrated estimate based on Fan & Levy (2025), ModNEF (2025), and NeuroCoreX (2025) published FPGA SNN results"
+  }
+}
