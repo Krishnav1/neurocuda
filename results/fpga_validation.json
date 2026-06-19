@@ -1,6 +1,6 @@
 {
   "pipeline": "NeuroCUDA \u2192 NIR \u2192 SC-NeuroCore \u2192 HLS \u2192 FPGA",
-  "timestamp": "2026-06-19 18:35:56",
+  "timestamp": "2026-06-19 18:42:13",
   "model": "neurocuda_fpga_demo",
   "T": 64,
   "nir": {
@@ -83,7 +83,7 @@
     "method": "Python C-model (bit-equivalent to HLS C++)",
     "timesteps": 64,
     "active_neurons": 10,
-    "total_spikes": 175,
+    "total_spikes": 193,
     "verified": true
   },
   "fpga": {
