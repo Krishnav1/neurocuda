@@ -1,0 +1,7 @@
+{
+  "method": "SEW-ResNet direct SNN",
+  "best_val": 67.6582532051282,
+  "T_train": 4,
+  "epochs": 50,
+  "date": "2026-06-19T12:50:07.249493"
+}
