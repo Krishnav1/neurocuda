@@ -84,6 +84,100 @@ class IFNeuron(nn.Module):
 
 
 # ---------------------------------------------------------------------------
+# Surrogate gradient: arctan approximation.
+# Forward = hard step (v >= threshold). Backward = smooth atan derivative.
+# Used by LIFNeuron for direct SNN training via BPTT.
+# ---------------------------------------------------------------------------
+class _SurrogateGradient(torch.autograd.Function):
+    """Straight-through estimator with atan surrogate gradient.
+
+    Forward:  s = 1 if v >= threshold else 0   (hard threshold, binary spike)
+    Backward: ds/dv ≈ alpha / (2 * (1 + (π/2 · alpha · (v - threshold))²))
+
+    α (alpha) = 2.0 gives a smooth gradient that works well in practice.
+    """
+    @staticmethod
+    def forward(ctx, v, threshold, alpha=2.0):
+        thresh_t = threshold.detach().clone() if isinstance(threshold, torch.Tensor) else torch.tensor(float(threshold), device=v.device, dtype=v.dtype)
+        ctx.save_for_backward(v, thresh_t)
+        ctx.alpha = alpha
+        return (v >= threshold).float()
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        v, threshold = ctx.saved_tensors
+        alpha = ctx.alpha
+        # atan surrogate gradient: smooth around threshold, ~0 far away
+        inner = (torch.pi / 2.0) * alpha * (v - threshold)
+        grad_v = alpha / (2.0 * (1.0 + inner * inner))
+        return grad_output * grad_v, None, None  # no grad for threshold, alpha
+
+
+def surrogate_spike(v, threshold, alpha=2.0):
+    """Binary spike with surrogate gradient for training."""
+    return _SurrogateGradient.apply(v, threshold, alpha)
+
+
+# ---------------------------------------------------------------------------
+# LIF neuron for DIRECT SNN TRAINING (surrogate gradient BPTT).
+# Dynamics:  v[t] = beta * v[t-1] + input[t]
+#            spike[t] = 1 if v[t] >= threshold else 0   (surrogate for backward)
+#            v[t] = v[t] - spike[t] * threshold          (soft reset)
+#
+# The spike is BINARY (0 or 1) — a REAL spiking neuron.
+# During inference (eval mode), the surrogate is skipped and spikes are hard.
+# ---------------------------------------------------------------------------
+class LIFNeuron(nn.Module):
+    """Leaky Integrate-and-Fire neuron trainable via surrogate gradient BPTT.
+
+    Args:
+        threshold: firing threshold (scalar)
+        beta:     leak factor. 0 = no memory (stateless), 1 = perfect memory.
+                  Typical: 0.5 for temporal smoothing.
+        alpha:    surrogate gradient sharpness. Higher = steeper gradient.
+                  Typical: 2.0 (default in snnTorch).
+    """
+
+    def __init__(self, threshold=1.0, beta=0.5, alpha=2.0):
+        super().__init__()
+        self.threshold = nn.Parameter(torch.tensor(float(threshold)), requires_grad=False)
+        self.beta = float(beta)
+        self.alpha = float(alpha)
+        self.v = None  # membrane potential (stateful across timesteps)
+
+    def reset(self):
+        self.v = None
+
+    def forward(self, x):
+        if self.v is None:
+            self.v = torch.zeros_like(x)
+
+        # Leak + integrate
+        self.v = self.beta * self.v + x
+
+        # Spike with surrogate gradient (train) or hard step (eval)
+        if self.training:
+            spike = surrogate_spike(self.v, self.threshold, self.alpha)
+        else:
+            spike = (self.v >= self.threshold).float()
+
+        # Soft reset (subtract threshold for each spike)
+        self.v = self.v - spike * self.threshold
+
+        return spike  # BINARY spike — real spiking neuron
+
+
+# ---------------------------------------------------------------------------
+# Utility to reset all spiking neurons in a model.
+# ---------------------------------------------------------------------------
+def reset_spiking(model):
+    """Reset membrane potential of all IF/LIF neurons in a model."""
+    for m in model.modules():
+        if isinstance(m, (IFNeuron, LIFNeuron)):
+            m.reset()
+
+
+# ---------------------------------------------------------------------------
 # CIFAR ResNet-18 with a swappable activation factory `act_layer()`.
 # CIFAR variant: 3x3 stem, stride 1, no initial maxpool.
 # ---------------------------------------------------------------------------
