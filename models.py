@@ -42,17 +42,30 @@ myfloor = GradFloor.apply
 # ---------------------------------------------------------------------------
 # QCFS activation. L = quantization steps. thresh (lambda) is learnable.
 #   a = lambda * clip( floor( z/lambda * L + 0.5 ) / L , 0, 1 )
+#
+# Supports both per-layer (scalar λ) and per-channel (vector λ) modes.
+# Set num_channels=None for per-layer, num_channels=C for per-channel.
 # ---------------------------------------------------------------------------
 class QCFS(nn.Module):
-    def __init__(self, L=8, thresh_init=4.0):
+    def __init__(self, L=8, thresh_init=4.0, num_channels=None):
         super().__init__()
-        # lambda as a learnable scalar parameter, initialised positive.
-        self.thresh = nn.Parameter(torch.tensor(float(thresh_init)))
+        self.num_channels = num_channels
+        if num_channels is not None:
+            # Per-channel: one learnable threshold per channel
+            self.thresh = nn.Parameter(
+                torch.ones(num_channels) * float(thresh_init))
+        else:
+            # Per-layer: single learnable scalar
+            self.thresh = nn.Parameter(torch.tensor(float(thresh_init)))
         self.L = L
 
     def forward(self, x):
-        # Guard against a non-positive threshold during training.
+        # Guard against non-positive thresholds during training.
         thresh = self.thresh.abs() + 1e-4
+        # Reshape for broadcasting if per-channel
+        if self.num_channels is not None and thresh.dim() == 1:
+            # x: (B, C, H, W) or (B*T, C, H, W) — broadcast over C
+            thresh = thresh.view(1, -1, *([1] * (x.dim() - 2)))
         x = x / thresh
         x = torch.clamp(x, 0.0, 1.0)
         x = myfloor(x * self.L + 0.5) / self.L   # STE floor -> gradient reaches thresh
@@ -72,30 +85,43 @@ class IFNeuron(nn.Module):
     Training mode: uses surrogate gradient (atan) for backward pass,
                    enabling post-conversion fine-tuning via BPTT.
     Eval mode: hard threshold (standard IF inference).
+
+    Supports both per-layer (scalar thresh) and per-channel (vector thresh).
+    Set num_channels=None for per-layer, num_channels=C for per-channel.
     """
 
-    def __init__(self, thresh=1.0, alpha=2.0):
+    def __init__(self, thresh=1.0, alpha=2.0, num_channels=None):
         super().__init__()
-        self.thresh = float(thresh)
+        self.num_channels = num_channels
         self.alpha = float(alpha)
+        if num_channels is not None:
+            self.register_buffer(
+                'thresh', torch.ones(num_channels) * float(thresh))
+        else:
+            self.register_buffer('thresh', torch.tensor(float(thresh)))
         self.v = None
 
     def reset(self):
         self.v = None
 
     def forward(self, x):
+        # Reshape threshold for broadcasting if per-channel
+        thresh = self.thresh
+        if self.num_channels is not None and thresh.dim() == 1:
+            thresh = thresh.view(1, -1, *([1] * (x.dim() - 2)))
+
         if self.v is None:
-            self.v = torch.ones_like(x) * (self.thresh * 0.5)
+            self.v = torch.ones_like(x) * (thresh * 0.5)
         self.v = self.v + x
 
         if self.training:
             # Surrogate gradient enables BPTT through the spike
-            spike = surrogate_spike(self.v, self.thresh, self.alpha)
+            spike = surrogate_spike(self.v, thresh, self.alpha)
         else:
-            spike = (self.v >= self.thresh).float()
+            spike = (self.v >= thresh).float()
 
-        self.v = self.v - spike * self.thresh        # soft reset (subtractive)
-        return spike * self.thresh
+        self.v = self.v - spike * thresh        # soft reset (subtractive)
+        return spike * thresh
 
 
 # ---------------------------------------------------------------------------
@@ -264,12 +290,27 @@ def resnet18_cifar(act_layer, num_classes=10):
 # and weights, and replacing each QCFS with an IFNeuron carrying its lambda.
 # ---------------------------------------------------------------------------
 def build_snn_from_qcfs(qcfs_model):
+    """Build an SNN (IF neurons) from a QCFS-trained model.
+
+    Handles both per-layer (scalar λ) and per-channel (vector λ) QCFS thresholds.
+    """
     snn = copy.deepcopy(qcfs_model)
 
     def replace(module):
         for name, child in module.named_children():
             if isinstance(child, QCFS):
-                setattr(module, name, IFNeuron(thresh=child.thresh.abs().item() + 1e-4))
+                nc = child.num_channels
+                thresh = child.thresh.abs() + 1e-4
+                if nc is not None:
+                    # Per-channel: create IF with matching channel count
+                    new_if = IFNeuron(thresh=1.0, alpha=2.0, num_channels=nc)
+                    new_if.thresh.copy_(thresh.data)
+                else:
+                    # Per-layer: scalar threshold
+                    new_if = IFNeuron(
+                        thresh=thresh.item() if thresh.numel() == 1
+                        else thresh.mean().item(), alpha=2.0)
+                setattr(module, name, new_if)
             else:
                 replace(child)
 

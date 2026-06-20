@@ -112,11 +112,22 @@ def to_nir(graph_or_model, T=64, model_name="neurocuda_snn") -> Dict[str, Any]:
         # ── IF/LIF Neuron ──
         elif ltype == "if_neuron":
             threshold = params.get("threshold", 1.0)
+            # Handle per-channel thresholds (tensor/array)
+            if isinstance(threshold, torch.Tensor):
+                thr_val = threshold.detach().cpu().numpy()
+            elif isinstance(threshold, np.ndarray):
+                thr_val = threshold
+            elif isinstance(threshold, (list, tuple)):
+                thr_val = np.array(threshold, dtype=np.float32)
+            else:
+                thr_val = float(threshold)
+            # NIR LIF node: r (resistance), v_threshold
+            # For per-channel, these become arrays matching channel count
             nir_node = {
                 "type": "LIF",
-                "tau": float(T_val),  # time constant approximated by T
-                "r": float(_numpy_or_scalar(threshold)),
-                "v_threshold": float(_numpy_or_scalar(threshold)),
+                "tau": float(T_val),
+                "r": thr_val if isinstance(thr_val, np.ndarray) else float(thr_val),
+                "v_threshold": thr_val if isinstance(thr_val, np.ndarray) else float(thr_val),
             }
             name = name or f"lif_{node_idx}"
             nodes[name] = nir_node

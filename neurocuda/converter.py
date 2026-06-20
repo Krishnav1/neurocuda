@@ -71,6 +71,40 @@ def _replace_activations(model, old_types, new_factory):
     return replaced
 
 
+def _replace_activations_cs(model, old_types, new_factory):
+    """Replace activations with channel-wise variants.
+
+    Detects output channels from the preceding Conv2d/Linear layer and
+    passes num_channels to new_factory(num_channels=C).
+    Falls back to new_factory() if channel count can't be determined.
+    """
+    replaced = 0
+    for parent_mod in list(model.modules()):
+        children = list(parent_mod.named_children())
+        for i, (name, child) in enumerate(children):
+            if not isinstance(child, old_types):
+                continue
+            # Find preceding layer's output channels
+            num_ch = None
+            for j in range(i - 1, -1, -1):
+                prev = children[j][1]
+                if isinstance(prev, nn.Conv2d):
+                    num_ch = prev.out_channels
+                    break
+                elif isinstance(prev, nn.Linear):
+                    num_ch = prev.out_features
+                    break
+                elif isinstance(prev, nn.BatchNorm2d):
+                    num_ch = prev.num_features
+                    break
+            if num_ch is not None:
+                setattr(parent_mod, name, new_factory(num_ch))
+            else:
+                setattr(parent_mod, name, new_factory())
+            replaced += 1
+    return replaced
+
+
 # ========================================================================
 # BN Folding
 # ========================================================================
@@ -104,6 +138,62 @@ def _fold_batchnorms(model):
 
 
 # ========================================================================
+# Temporal Forward Helpers
+# ========================================================================
+
+def _forward_temporal(model, data, average=True):
+    """Forward a stateless model on 5D temporal data.
+
+    For stateless models (QCFS, ANN with ReLU): reshape B*T → batch dim.
+    Returns (B, ...) if average=True, else (B*T, ...).
+    """
+    B, T = data.size(0), data.size(1)
+    flat = data.view(B * T, *data.shape[2:])     # (B*T, C, H, W)
+    out_flat = model(flat)
+    if not average:
+        return out_flat
+    # Reshape back: (B*T, N) → (B, T, N) → mean over T → (B, N)
+    out = out_flat.view(B, T, *out_flat.shape[1:])
+    return out.mean(dim=1)
+
+
+def _forward_spiking(model, data, average=True):
+    """Forward a stateful spiking model on 5D temporal data.
+
+    Handles BOTH model types:
+      A) 4D-native models: model expects (B,C,H,W) — loop over T with 4D slices.
+      B) 5D-native models: model expects (B,T,C,H,W) and does own reshaping —
+         loop over T with 5D slices (T=1 per call) so IF state accumulates
+         correctly per-frame instead of leaking across timesteps.
+
+    Returns (B, ...) with output summed or averaged over T.
+    """
+    B, T = data.size(0), data.size(1)
+
+    # Auto-detect model type on t=0 (reuse result — no wasted forward)
+    try:
+        out_0 = model(data[:, 0, :, :, :])             # 4D-native
+        _is_4d = True
+    except (ValueError, RuntimeError):
+        out_0 = model(data[:, 0:1, :, :, :])           # 5D-native (T=1)
+        _is_4d = False
+
+    out_sum = torch.zeros(B, *out_0.shape[1:],
+                          device=data.device, dtype=out_0.dtype)
+    out_sum = out_sum + out_0
+
+    # Remaining frames
+    for t in range(1, T):
+        if _is_4d:
+            out_t = model(data[:, t, :, :, :])         # (B, C, H, W)
+        else:
+            out_t = model(data[:, t:t+1, :, :, :])     # (B, 1, C, H, W)
+        out_sum = out_sum + out_t
+
+    return out_sum / T if average else out_sum
+
+
+# ========================================================================
 # QCFS Fine-Tuning
 # ========================================================================
 
@@ -121,13 +211,20 @@ def _fine_tune_qcfs(qcfs_model, train_loader, test_loader, epochs,
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
 
     best_acc, best_state = 0.0, None
+    temporal_5d = None  # Detect on first batch
 
     for epoch in range(epochs):
         qcfs_model.train()
         for data, target in train_loader:
             data, target = data.to(device), target.to(device)
             opt.zero_grad()
-            loss = criterion(qcfs_model(data), target)
+            if data.dim() == 5:
+                temporal_5d = True
+                out = _forward_temporal(qcfs_model, data, average=True)
+            else:
+                temporal_5d = False
+                out = qcfs_model(data)
+            loss = criterion(out, target)
             loss.backward(); opt.step()
 
         if test_loader is not None:
@@ -136,15 +233,26 @@ def _fine_tune_qcfs(qcfs_model, train_loader, test_loader, epochs,
             with torch.no_grad():
                 for data, target in test_loader:
                     data, target = data.to(device), target.to(device)
-                    correct += (qcfs_model(data).argmax(1) == target).sum().item()
+                    if data.dim() == 5:
+                        out = _forward_temporal(qcfs_model, data, average=True)
+                    else:
+                        out = qcfs_model(data)
+                    correct += (out.argmax(1) == target).sum().item()
                     total += data.size(0)
             acc = 100.0 * correct / total
             sched.step()
             if acc > best_acc: best_acc = acc; best_state = copy.deepcopy(qcfs_model.state_dict())
             if verbose:
-                lams = [f"{m.thresh.abs().item():.3f}" for m in qcfs_model.modules()
-                        if isinstance(m, QCFS)]
-                print(f"  [QCFS {epoch+1}/{epochs}] Acc={acc:.2f}% λ=[{', '.join(lams)}]")
+                lams = []
+                for m in qcfs_model.modules():
+                    if isinstance(m, QCFS):
+                        t = m.thresh.abs()
+                        if t.numel() == 1:
+                            lams.append(f"{t.item():.3f}")
+                        else:
+                            lams.append(f"[{t.mean().item():.2f}]")
+                print(f"  [QCFS {epoch+1}/{epochs}] Acc={acc:.2f}% λ=[{', '.join(lams)}]"
+                      f"{' (5D temporal)' if temporal_5d else ''}")
         else:
             sched.step(); best_state = copy.deepcopy(qcfs_model.state_dict())
 
@@ -153,17 +261,22 @@ def _fine_tune_qcfs(qcfs_model, train_loader, test_loader, epochs,
 
 
 # ========================================================================
-# IF Fine-Tuning
+# IF Evaluation & Fine-Tuning
 # ========================================================================
 
 def _eval_if(if_model, test_loader, device):
+    """Evaluate IF model. Handles 5D temporal data via per-frame loop."""
     if_model.eval()
     correct, total = 0, 0
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
+            B = data.size(0)
             reset_spiking(if_model)
-            out = if_model(data)
+            if data.dim() == 5:
+                out = _forward_spiking(if_model, data, average=False)
+            else:
+                out = if_model(data)
             correct += (out.argmax(1) == target).sum().item()
             total += B
     return 100.0 * correct / total
@@ -171,12 +284,14 @@ def _eval_if(if_model, test_loader, device):
 
 def _fine_tune_if(if_model, train_loader, test_loader, epochs,
                   lr, device, verbose):
+    """Fine-tune IF model with BPTT. Handles 5D temporal data via per-frame loop."""
     criterion = nn.CrossEntropyLoss()
     trainable = [p for n, p in if_model.named_parameters() if 'thresh' not in n]
     opt = torch.optim.AdamW(trainable, lr=lr, weight_decay=1e-4)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
 
     best_acc, best_state = 0.0, None
+    temporal_5d = None  # Detect on first batch
 
     for epoch in range(epochs):
         if_model.train()
@@ -185,9 +300,10 @@ def _fine_tune_if(if_model, train_loader, test_loader, epochs,
             reset_spiking(if_model); opt.zero_grad()
 
             if data.dim() == 5:
-                # Model handles temporal averaging internally
-                out = if_model(data)
+                temporal_5d = True
+                out = _forward_spiking(if_model, data, average=True)
             else:
+                temporal_5d = False
                 out = if_model(data)
 
             loss = criterion(out, target)
@@ -199,7 +315,8 @@ def _fine_tune_if(if_model, train_loader, test_loader, epochs,
             acc = _eval_if(if_model, test_loader, device)
             sched.step()
             if acc > best_acc: best_acc = acc; best_state = copy.deepcopy(if_model.state_dict())
-            if verbose: print(f"  [IF FT {epoch+1}/{epochs}] Acc={acc:.2f}%")
+            if verbose: print(f"  [IF FT {epoch+1}/{epochs}] Acc={acc:.2f}%"
+                              f"{' (5D temporal)' if temporal_5d else ''}")
         else:
             sched.step(); best_state = copy.deepcopy(if_model.state_dict())
 
@@ -213,7 +330,7 @@ def _fine_tune_if(if_model, train_loader, test_loader, epochs,
 
 def convert(ann_model, train_loader, test_loader=None,
             qcfs_epochs=5, if_epochs=5, strategy="auto",
-            device=None, verbose=True):
+            channel_wise=True, device=None, verbose=True):
     """Convert a trained ANN to a spiking neural network.
 
     Two-stage pipeline:
@@ -227,52 +344,63 @@ def convert(ann_model, train_loader, test_loader=None,
         qcfs_epochs: QCFS calibration epochs (5)
         if_epochs: IF fine-tuning epochs (5)
         strategy: "auto" | "qcfs_if_ft" | "qcfs_direct"
+        channel_wise: Use per-channel thresholds (CS-QCFS). Default True.
+                      Improves accuracy on models with diverse channel activation ranges.
         device: torch device
         verbose: Print progress
 
     Returns:
         snn_model: Converted SNN (IF neurons, stateful, binary spikes)
-        stats: dict with strategy, qcfs_acc, if_acc, thresholds, sparsity
+        stats: dict with strategy, qcfs_acc, if_acc, thresholds, channel_wise, sparsity
     """
     if device is None: device = _device
     if strategy == "auto": strategy = _detect_strategy(ann_model)
 
     if verbose:
-        print(f"neurocuda.convert: strategy={strategy}, "
+        cs_label = "CS-" if channel_wise else ""
+        print(f"neurocuda.convert: strategy={cs_label}{strategy}, "
               f"qcfs_ep={qcfs_epochs}, if_ep={if_epochs}")
 
-    stats = {"strategy": strategy, "qcfs_accuracy": None,
-             "if_accuracy": None, "thresholds": []}
+    stats = {"strategy": strategy, "channel_wise": channel_wise,
+             "qcfs_accuracy": None, "if_accuracy": None, "thresholds": []}
 
     ann_model = ann_model.to(device)
 
     # --- Stage 1: QCFS calibration ---
-    if verbose: print("[1/3] QCFS calibration...")
+    if verbose:
+        cs_label = "CS-" if channel_wise else ""
+        print(f"[1/3] {cs_label}QCFS calibration...")
+
     qcfs_model = copy.deepcopy(ann_model)
-    n = _replace_activations(qcfs_model, (nn.ReLU, nn.SiLU, nn.GELU),
-                             lambda: QCFS(L=8, thresh_init=2.0))
-    if verbose: print(f"  Replaced {n} activations → QCFS")
+    if channel_wise:
+        n = _replace_activations_cs(qcfs_model, (nn.ReLU, nn.SiLU, nn.GELU),
+                                     lambda num_channels: QCFS(
+                                         L=8, thresh_init=2.0,
+                                         num_channels=num_channels))
+    else:
+        n = _replace_activations(qcfs_model, (nn.ReLU, nn.SiLU, nn.GELU),
+                                 lambda: QCFS(L=8, thresh_init=2.0))
+    if verbose: print(f"  Replaced {n} activations → QCFS"
+                      f"{' (per-channel)' if channel_wise else ' (per-layer)'}")
 
     qcfs_model, qcfs_acc = _fine_tune_qcfs(
         qcfs_model, train_loader, test_loader, qcfs_epochs,
         lr_weight=1e-3, lr_lambda=5e-2, device=device, verbose=verbose)
     stats["qcfs_accuracy"] = qcfs_acc
 
+    # Collect thresholds (scalar or per-channel)
     for m in qcfs_model.modules():
         if isinstance(m, QCFS):
-            stats["thresholds"].append(m.thresh.abs().item())
+            t = m.thresh.abs().data.clone()
+            stats["thresholds"].append(
+                t.tolist() if t.numel() > 1 else t.item())
 
     if strategy == "qcfs_direct":
         # Direct QCFS→IF replace (no fine-tune), for deep residual models
         if verbose: print("[2/3] Direct QCFS→IF replace (no fine-tune)...")
         if_model = copy.deepcopy(qcfs_model)
         _fold_batchnorms(if_model)
-        _replace_activations(if_model, QCFS,
-                             lambda: IFNeuron(thresh=1.0))
-        thr_idx = 0
-        for m in if_model.modules():
-            if isinstance(m, IFNeuron) and thr_idx < len(stats["thresholds"]):
-                m.thresh = stats["thresholds"][thr_idx]; thr_idx += 1
+        _transfer_qcfs_to_if(if_model, stats["thresholds"], channel_wise)
         if_model.eval()
         if test_loader:
             stats["if_accuracy"] = _eval_if(if_model, test_loader, device)
@@ -283,11 +411,7 @@ def convert(ann_model, train_loader, test_loader=None,
     if_model = copy.deepcopy(qcfs_model)
     n_folded = _fold_batchnorms(if_model)
     if verbose: print(f"  Folded {n_folded} Conv→BN pairs")
-    _replace_activations(if_model, QCFS, lambda: IFNeuron(thresh=1.0, alpha=2.0))
-    thr_idx = 0
-    for m in if_model.modules():
-        if isinstance(m, IFNeuron) and thr_idx < len(stats["thresholds"]):
-            m.thresh = stats["thresholds"][thr_idx]; thr_idx += 1
+    _transfer_qcfs_to_if(if_model, stats["thresholds"], channel_wise)
 
     # --- Stage 3: IF fine-tune ---
     if verbose: print("[3/3] IF fine-tune (BPTT + surrogate gradient)...")
@@ -298,6 +422,45 @@ def convert(ann_model, train_loader, test_loader=None,
 
     if_model.eval()
     return if_model, stats
+
+
+def _transfer_qcfs_to_if(model, thresholds, channel_wise):
+    """Replace QCFS activations with IF neurons, transferring thresholds.
+
+    Args:
+        model: Model with QCFS activations (modified in-place).
+        thresholds: List of threshold values — scalars for per-layer,
+                    lists for per-channel.
+        channel_wise: Whether thresholds are per-channel.
+    """
+    thr_iter = iter(thresholds)
+    for parent_mod in list(model.modules()):
+        for name, child in list(parent_mod.named_children()):
+            if not isinstance(child, QCFS):
+                continue
+            try:
+                thr = next(thr_iter)
+            except StopIteration:
+                break
+            nc = child.num_channels  # None for per-layer, int for per-channel
+            if nc is not None:
+                # Per-channel IF
+                if isinstance(thr, list):
+                    thr_t = torch.tensor(thr, device=next(
+                        model.parameters()).device)
+                else:
+                    thr_t = torch.ones(nc) * float(thr)
+                setattr(parent_mod, name,
+                        IFNeuron(thresh=1.0, alpha=2.0, num_channels=nc))
+                getattr(parent_mod, name).thresh.copy_(thr_t)
+            else:
+                # Per-layer IF
+                if isinstance(thr, list):
+                    thr_v = float(sum(thr) / len(thr))
+                else:
+                    thr_v = float(thr)
+                setattr(parent_mod, name,
+                        IFNeuron(thresh=thr_v, alpha=2.0))
 
 
 # ========================================================================

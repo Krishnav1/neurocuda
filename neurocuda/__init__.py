@@ -26,11 +26,13 @@ from .converter import convert, Calibrator, measure_sparsity
 from .finetune import finetune, FineTuner
 from .compiler import compile, list_backends, benchmark
 from .utils import energy_estimate, fold_batchnorm, validate_snn
+from .export.nir_exporter import to_nir, to_sc_neurocore, to_hls_cpp
 from . import backends
 
 __version__ = "0.2.0"
 __all__ = [
     "convert", "finetune", "compile", "list_backends", "benchmark",
+    "to_nir", "to_sc_neurocore", "to_hls_cpp",
     "Calibrator", "FineTuner", "measure_sparsity",
     "energy_estimate", "fold_batchnorm", "validate_snn",
     "backends",
