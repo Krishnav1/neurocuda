@@ -66,9 +66,18 @@ class QCFS(nn.Module):
 # the QCFS activation range [0, lambda]. Initial membrane = thresh/2 (shift=0.5).
 # ---------------------------------------------------------------------------
 class IFNeuron(nn.Module):
-    def __init__(self, thresh=1.0):
+    """Integrate-and-Fire neuron for SNN conversion + inference.
+
+    Forward: binary spike (0 or threshold) with soft reset.
+    Training mode: uses surrogate gradient (atan) for backward pass,
+                   enabling post-conversion fine-tuning via BPTT.
+    Eval mode: hard threshold (standard IF inference).
+    """
+
+    def __init__(self, thresh=1.0, alpha=2.0):
         super().__init__()
         self.thresh = float(thresh)
+        self.alpha = float(alpha)
         self.v = None
 
     def reset(self):
@@ -78,7 +87,13 @@ class IFNeuron(nn.Module):
         if self.v is None:
             self.v = torch.ones_like(x) * (self.thresh * 0.5)
         self.v = self.v + x
-        spike = (self.v >= self.thresh).float()
+
+        if self.training:
+            # Surrogate gradient enables BPTT through the spike
+            spike = surrogate_spike(self.v, self.thresh, self.alpha)
+        else:
+            spike = (self.v >= self.thresh).float()
+
         self.v = self.v - spike * self.thresh        # soft reset (subtractive)
         return spike * self.thresh
 
