@@ -22,16 +22,16 @@ Usage:
 Targets: gpu, cpu, loihi, loihi3
 """
 
-from .converter import convert, Calibrator, Converter
+from .converter import convert, Calibrator, measure_sparsity
 from .finetune import finetune, FineTuner
 from .compiler import compile, list_backends, benchmark
 from .utils import energy_estimate, fold_batchnorm, validate_snn
 from . import backends
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = [
     "convert", "finetune", "compile", "list_backends", "benchmark",
-    "Calibrator", "Converter", "FineTuner",
+    "Calibrator", "FineTuner", "measure_sparsity",
     "energy_estimate", "fold_batchnorm", "validate_snn",
     "backends",
 ]
