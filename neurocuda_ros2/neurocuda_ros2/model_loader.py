@@ -268,11 +268,19 @@ def detection_to_msg(output_tensor, class_names=None, threshold=0.5):
     probs = torch.softmax(output_tensor[0], dim=0)
     top_prob, top_class = probs.max(dim=0)
 
+    top_indices = probs.argsort(descending=True)[:3].tolist()
+    top_k_simple = []
+    for idx in top_indices:
+        if class_names:
+            name = class_names[idx]
+        else:
+            name = str(idx)
+        top_k_simple.append((name, probs[idx].item()))
+
     result = {
         "class_id": top_class.item(),
         "class_name": class_names[top_class.item()] if class_names else str(top_class.item()),
         "confidence": top_prob.item(),
-        "top_k": [(class_names[i].item() if class_names else i, probs[i].item())
-                  for i in probs.argsort(descending=True)[:3].tolist()],
+        "top_k": top_k_simple,
     }
     return result
