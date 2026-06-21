@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neurocuda"
+version = "0.2.0"
+description = "One-line API for PyTorch → Neuromorphic deployment (GPU, CPU, Loihi 2, FPGA)"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    {name = "Krishna Varma"}
+]
+keywords = [
+    "neuromorphic", "spiking-neural-networks", "snn", "loihi",
+    "fpga", "pytorch", "compiler", "nir", "neurobench"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: System :: Hardware",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.0.0",
+    "numpy>=1.24.0",
+]
+
+[project.optional-dependencies]
+all = [
+    "snntorch>=0.9.0",
+    "nir>=1.0",
+    "nirtorch>=2.6",
+    "neurobench>=2.3",
+    "gymnasium>=1.0",
+    "tonic>=1.0",
+    "torchvision>=0.15",
+]
+nir = ["nir>=1.0", "nirtorch>=2.6"]
+neurobench = ["neurobench>=2.3"]
+rl = ["gymnasium>=1.0"]
+data = ["tonic>=1.0", "torchvision>=0.15"]
+
+[project.urls]
+Homepage = "https://github.com/neurocuda/neurocuda"
+Documentation = "https://github.com/neurocuda/neurocuda#readme"
+Repository = "https://github.com/neurocuda/neurocuda.git"
+Issues = "https://github.com/neurocuda/neurocuda/issues"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

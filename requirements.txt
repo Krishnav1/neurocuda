@@ -1,4 +1,15 @@
+# Core (required)
 torch>=2.0.0
-snntorch>=0.9.0
 numpy>=1.24.0
-torchvision>=0.15.0
+
+# Full install (recommended for all features)
+snntorch>=0.9.0
+nir>=1.0
+nirtorch>=2.6
+neurobench>=2.3
+gymnasium>=1.0
+tonic>=1.0
+torchvision>=0.15
+
+# Development
+pytest>=9.0

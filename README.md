@@ -5,6 +5,8 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://python.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-orange)](https://pytorch.org)
+[![PyPI](https://img.shields.io/badge/pypi-neurocuda-blue)](https://pypi.org/project/neurocuda/)
+[![Tests](https://img.shields.io/badge/tests-70%20passed-green)](tests/)
 
 ---
 
@@ -111,19 +113,38 @@ Measured on NMNIST event-camera data (34×34 resolution, 16 timesteps) with Loih
 
 ## Installation
 
-### Requirements
+### Quick Install (PyPI)
 
-- **Python** ≥ 3.10
-- **PyTorch** ≥ 2.0 (CUDA optional but recommended)
-- **numpy**, **nir**, **nirtorch**, **neurobench**, **gymnasium**
+```bash
+pip install neurocuda
+```
+
+For all features (NIR export, NeuroBench, RL demos):
+```bash
+pip install neurocuda[all]
+```
 
 ### Install from Source
 
 ```bash
 git clone https://github.com/neurocuda/neurocuda.git
 cd neurocuda
-pip install -r requirements.txt
+pip install -e .          # Editable install (for development)
+# or
+pip install -e .[all]     # Full install with all optional dependencies
 ```
+
+### Requirements
+
+- **Python** ≥ 3.10
+- **PyTorch** ≥ 2.0 (CUDA optional but recommended)
+- **numpy** ≥ 1.24
+
+Optional (auto-installed with `[all]`):
+- `snntorch`, `nir`, `nirtorch` — NIR export
+- `neurobench` — NeuroBench reporting
+- `gymnasium` — RL demos (CartPole)
+- `tonic`, `torchvision` — Data loading
 
 ### Verify Installation
 

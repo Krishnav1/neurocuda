@@ -1,0 +1,15 @@
+include README.md
+include LICENSE
+include requirements.txt
+include CLAUDE.md
+include reproduce.py
+recursive-include examples *.py
+recursive-include tests *.py
+recursive-include results *.md *.csv *.json
+prune .venv
+prune __pycache__
+prune .git
+prune .claude
+prune checkpoints
+prune data
+prune cache
