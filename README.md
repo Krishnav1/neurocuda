@@ -535,6 +535,37 @@ python verify_nir_trained.py --seed 0
 
 ---
 
+## Development — Running Tests
+
+```bash
+# Install test dependencies
+pip install pytest -q
+
+# Run all tests (70 tests, ~2 seconds)
+python -m pytest tests/ -v
+
+# Run specific test files
+python -m pytest tests/test_models.py -v       # Neuron models (QCFS, IF, LIF)
+python -m pytest tests/test_converter.py -v     # Conversion pipeline
+python -m pytest tests/test_utils.py -v         # Sparsity, energy, BN folding
+python -m pytest tests/test_device.py -v        # Device placement (GPU/CPU)
+python -m pytest tests/test_nir.py -v           # NIR export
+```
+
+**What the test suite covers:**
+
+| Test File | What It Tests | # Tests |
+|-----------|--------------|---------|
+| `test_models.py` | QCFS, IFNeuron, LIFNeuron — threshold shapes, binary spikes, state management, surrogate gradient | 22 |
+| `test_converter.py` | `convert()`, `_forward_temporal`, `_forward_spiking`, activation replacement, BN folding | 16 |
+| `test_utils.py` | `measure_sparsity`, `energy_estimate`, `fold_batchnorm`, `validate_snn` | 10 |
+| `test_device.py` | Device placement after conversion, parameter movement GPU↔CPU, input device mismatch | 11 |
+| `test_nir.py` | `to_nir` — valid graph structure, nodes/edges, channel-wise, round-trip integrity | 11 |
+
+All tests use **synthetic data only** — no downloads, no pretrained checkpoints. Tests complete in <3 seconds.
+
+---
+
 ## Repository Structure
 
 ```
