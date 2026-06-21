@@ -7,6 +7,14 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=en_US.UTF-8
 
 # =========================================================================
+# Minimal tools + PyTorch FIRST — caches separately, survives later fixes
+# =========================================================================
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-pip curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip3 install --no-cache-dir --break-system-packages torch numpy
+
+# =========================================================================
 # System dependencies
 # =========================================================================
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -37,11 +45,9 @@ RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
     && rm -rf /var/lib/apt/lists/*
 
 # =========================================================================
-# NeuroCUDA + PyTorch CUDA
+# NeuroCUDA
 # =========================================================================
-RUN pip3 install --no-cache-dir --break-system-packages \
-    torch numpy \
-    && pip3 install --no-cache-dir --break-system-packages neurocuda
+RUN pip3 install --no-cache-dir --break-system-packages neurocuda
 
 # =========================================================================
 # Event camera ROS2 packages (build from source if needed)
