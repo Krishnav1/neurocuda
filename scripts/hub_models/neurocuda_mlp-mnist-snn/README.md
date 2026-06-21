@@ -12,7 +12,7 @@ tags:
 - classification
 - quickstart
 - beginner
-pipeline_tag: digit-classification
+pipeline_tag: image-classification
 ---
 
 # neurocuda/mlp-mnist-snn ✅

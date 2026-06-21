@@ -38,10 +38,28 @@ from neurocuda.hub import MODEL_REGISTRY
 # Model Card Generator
 # ===========================================================================
 
+# Map our task names to valid HuggingFace pipeline tags
+_HF_PIPELINE_TAG_MAP = {
+    "event-camera-vision": "image-classification",
+    "robotics-perception": "robotics",
+    "image-classification": "image-classification",
+    "digit-classification": "image-classification",
+    "reinforcement-learning": "reinforcement-learning",
+    "gesture-recognition": "image-classification",
+    "keyword-spotting": "audio-classification",
+    "anomaly-detection": "other",
+}
+
+def _get_hf_pipeline_tag(task):
+    """Map our task name to a valid HuggingFace pipeline tag."""
+    return _HF_PIPELINE_TAG_MAP.get(task, "other")
+
+
 def generate_model_card(model_name, info):
     """Generate a HuggingFace-compatible model card in Markdown."""
     status_emoji = {"production": "✅", "beta": "⚠️", "planned": "🔮"}
     emoji = status_emoji.get(info.get("status"), "❓")
+    pipeline_tag = _get_hf_pipeline_tag(info.get("task", ""))
 
     # Format accuracy line
     if "snn_accuracy" in info:
@@ -90,7 +108,7 @@ tags:
 - neuromorphic
 - {info.get("category", "other")}
 {chr(10).join(f'- {t}' for t in info.get("tags", []))}
-pipeline_tag: {info.get("task", "other")}
+pipeline_tag: {pipeline_tag}
 ---
 
 # {model_name} {emoji}

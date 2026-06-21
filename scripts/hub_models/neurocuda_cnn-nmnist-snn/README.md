@@ -12,7 +12,7 @@ tags:
 - classification
 - robotics
 - flagship
-pipeline_tag: event-camera-vision
+pipeline_tag: image-classification
 ---
 
 # neurocuda/cnn-nmnist-snn ✅

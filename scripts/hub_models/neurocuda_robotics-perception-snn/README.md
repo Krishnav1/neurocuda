@@ -12,7 +12,7 @@ tags:
 - n-mnist
 - perception
 - energy
-pipeline_tag: robotics-perception
+pipeline_tag: robotics
 ---
 
 # neurocuda/robotics-perception-snn ✅

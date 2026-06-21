@@ -405,7 +405,8 @@ def load(model_name, device=None, use_hf=True):
         try:
             from huggingface_hub import hf_hub_download
             # Map model name to HF repo: neurocuda/cnn-nmnist-snn → Krishnav1234/neurocuda-cnn-nmnist-snn
-            hf_model_name = model_name.replace('/', '-')
+            # neurocuda/cnn-nmnist-snn → neurocuda-cnn-nmnist-snn
+            hf_model_name = model_name.replace('/', '-').replace('_', '-')
             hf_repo_id = f"{_HF_NAMESPACE}/{hf_model_name}"
             # Use token if available
             hf_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_TOKEN")
