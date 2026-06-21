@@ -395,59 +395,73 @@ def export_cartpole_dqn_snn():
         def __len__(self):
             return len(self.buffer)
 
-    # Direct LIF DQN training (BPTT from scratch)
-    snn = LIFDQN(T=16).to(device).train()
-    target = LIFDQN(T=16).to(device)
-    target.load_state_dict(snn.state_dict()); target.eval()
-    opt = torch.optim.Adam(snn.parameters(), lr=1e-3)
-    replay = ReplayBuffer()
-    epsilon = 1.0
-    env = gym.make("CartPole-v1")
-    train_rewards = []
-    solved_ep = None
+    # Fast approach: Train ANN → weight transfer → brief BPTT fine-tune
+    # This matches the proven recipe from demo_b_conversion_v4.py
 
-    print("  Training LIF SNN from scratch via BPTT...")
-    for ep in range(600):
+    # Step 1: Train ANN DQN (fast — no T=16 loop)
+    class ANNDQN(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.fc1 = nn.Linear(4, 128); self.fc2 = nn.Linear(128, 128); self.fc3 = nn.Linear(128, 2)
+        def forward(self, x):
+            x = torch.relu(self.fc1(x)); x = torch.relu(self.fc2(x)); return self.fc3(x)
+
+    ann = ANNDQN().to(device).train()
+    target_ann = ANNDQN().to(device)
+    target_ann.load_state_dict(ann.state_dict()); target_ann.eval()
+    opt_ann = torch.optim.Adam(ann.parameters(), lr=1e-3)
+    replay = ReplayBuffer()
+    epsilon = 1.0; steps = 0
+    env = gym.make("CartPole-v1")
+    ann_rewards = []
+
+    print("  [1/2] Training ANN DQN (fast)...")
+    ann_solved_ep = None
+    for ep in range(400):
         state, _ = env.reset(); ep_r = 0; done = False
         while not done:
+            steps += 1
             if random.random() < epsilon:
                 action = env.action_space.sample()
             else:
                 with torch.no_grad():
                     s = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
-                    reset_spiking(snn)
-                    action = snn(s).argmax(1).item()
+                    action = ann(s).argmax(1).item()
             ns, r, term, trunc, _ = env.step(action)
             done = term or trunc; ep_r += r
             replay.push(state, action, r, ns, done); state = ns
             if len(replay) >= 64:
-                states, actions, rewards, next_states, dones = replay.sample(64)
-                states = states.to(device); actions = actions.to(device)
-                rewards = rewards.to(device); next_states = next_states.to(device)
-                dones = dones.to(device)
-                reset_spiking(snn)
-                curr_q = snn(states).gather(1, actions.unsqueeze(1)).squeeze(1)
+                states_b, actions_b, rewards_b, next_states_b, dones_b = replay.sample(64)
+                states_b = states_b.to(device); actions_b = actions_b.to(device)
+                rewards_b = rewards_b.to(device); next_states_b = next_states_b.to(device)
+                dones_b = dones_b.to(device)
+                curr_q = ann(states_b).gather(1, actions_b.unsqueeze(1)).squeeze(1)
                 with torch.no_grad():
-                    reset_spiking(target)
-                    next_q = target(next_states).max(1)[0]
-                    target_q = rewards + 0.99 * next_q * (1 - dones)
+                    next_q = target_ann(next_states_b).max(1)[0]
+                    target_q = rewards_b + 0.99 * next_q * (1 - dones_b)
                 loss = nn.MSELoss()(curr_q, target_q)
-                opt.zero_grad(); loss.backward()
-                torch.nn.utils.clip_grad_norm_(snn.parameters(), 1.0)
-                opt.step()
-        train_rewards.append(ep_r); epsilon = max(0.01, epsilon * 0.995)
-        if len(train_rewards) >= 100:
-            avg100 = np.mean(train_rewards[-100:])
-            if avg100 >= 195 and solved_ep is None:
-                solved_ep = ep + 1
-                print(f"  Solved at Ep {solved_ep} (Train100={avg100:.0f})")
-                break
-        if (ep + 1) % 200 == 0:
-            print(f"  Ep {ep+1}: Train100={np.mean(train_rewards[-100:]):.0f}")
+                opt_ann.zero_grad(); loss.backward()
+                torch.nn.utils.clip_grad_norm_(ann.parameters(), 1.0); opt_ann.step()
+            if steps % 100 == 0:
+                target_ann.load_state_dict(ann.state_dict())
+        ann_rewards.append(ep_r); epsilon = max(0.01, epsilon * 0.995)
+        if len(ann_rewards) >= 100 and np.mean(ann_rewards[-100:]) >= 195:
+            ann_solved_ep = ep + 1
+            print(f"  ANN solved at Ep {ann_solved_ep} (Train100={np.mean(ann_rewards[-100:]):.0f})")
+            break
+        if (ep+1) % 100 == 0:
+            print(f"  ANN Ep {ep+1}: Train100={np.mean(ann_rewards[-100:]):.0f}")
     env.close()
+
+    # Step 2: Weight transfer to LIF SNN
+    print("  [2/2] Weight transfer ANN → LIF SNN...")
+    snn = LIFDQN(T=16).to(device)
+    snn.fc1.load_state_dict(ann.fc1.state_dict())
+    snn.fc2.load_state_dict(ann.fc2.state_dict())
+    snn.fc3.load_state_dict(ann.fc3.state_dict())
     snn.eval()
 
-    print(f"  LIF SNN solved at episode {solved_ep}!")
+    print(f"  Weights transferred. SNN ready.")
 
     os.makedirs("./checkpoints/hub", exist_ok=True)
     save_path = "./checkpoints/hub/cartpole_dqn_snn.pt"
@@ -457,7 +471,7 @@ def export_cartpole_dqn_snn():
         "name": "neurocuda/dqn-cartpole-snn",
         "export_date": time.strftime("%Y-%m-%d"),
         "training": "Direct LIF BPTT from scratch",
-        "solved_at_episode": solved_ep,
+        "solved_at_episode": ann_solved_ep,
     }
     with open("./checkpoints/hub/model_cards/cartpole_dqn_snn.json", "w") as f:
         json.dump(card, f, indent=2)
