@@ -30,9 +30,9 @@ One pipeline. Standard formats (NIR, NeuroBench). Every number measured on full 
 |---------|----------------|------------|--------|
 | GPU (PyTorch) | Reference | Reference | Production |
 | CPU (PyTorch) | 0/256K | 0.000000 | Bit-exact |
-| Loihi 2 simulator | 0/256K | 0.01% | Validated against Lava |
+| Loihi 2 IF model | 0/100K+ | 0.01% | Validated against hand-derived Loihi neuron equations (see `tests/test_lava_equivalence.py`) |
 
-**Hardware note**: Loihi 2 numbers are Intel's bit-accurate Lava simulator — NOT physical silicon. Labeled accordingly.
+**Hardware note**: The Loihi 2 row checks NeuroCUDA's IF neuron math against Loihi 2's published neuron equations, reimplemented in NumPy on synthetic input — it does NOT run Intel's Lava SDK and is NOT physical silicon. No vendor-SDK or hardware validation has been performed yet.
 
 ---
 
@@ -301,9 +301,9 @@ NIR and SNNToolBox are both real, prior work, and NeuroCUDA depends on NIR direc
 |------|---------------|---------------------|
 | **NIR** | Vendor-neutral graph IR for spiking networks; lets one model description target multiple simulators (Lava, snnTorch, SpikingJelly, Sinabs) | Doesn't train, convert, or validate — it's a representation format, not a conversion or deployment pipeline |
 | **SNNToolBox** | ANN→SNN conversion from Keras/PyTorch, export to PyNN/Brian2/SpiNNaker/Loihi | No NeuroBench reporting, no bit-level validation against a vendor reference SDK, conversion gap not benchmarked against current QCFS-class methods |
-| **NeuroCUDA** | Conversion (QCFS→IF + BPTT fine-tune) + NIR export + multi-backend compile + NeuroBench reporting, in one pipeline, with code generation checked spike-for-spike against Intel's own Lava implementation | Doesn't reinvent IR or conversion theory — uses NIR and published conversion methods as building blocks |
+| **NeuroCUDA** | Conversion (QCFS→IF + BPTT fine-tune) + NIR export + a from-scratch NIR executor (Kahn's-algorithm topological sort, see `nir_executor.py`) that correctly handles multi-input residual/branch nodes by summation + multi-backend compile + NeuroBench reporting, in one pipeline | Doesn't reinvent IR or conversion theory — uses NIR and published conversion methods as building blocks |
 
-The reason this distinction matters: a conversion number alone (e.g. "94.49% accuracy") shows the math works. It does not show the *generated backend code* is correct. NeuroCUDA's 0/256,000 spike-level deviation result against Lava is a code-generation correctness check that, as far as we've found, no other open-source pipeline reports.
+The reason this distinction matters: NIR gives you a representation format, and the reference NIR tooling round-trips simple feed-forward graphs fine — but executing a NIR graph with residual/branched connections (multiple inputs summing into one node, e.g. ResNet skip connections) isn't handled by the reference execution path. NeuroCUDA's `NIRExecutor` does the topological sort itself and sums multi-input nodes explicitly, verified bit-exact (0.000000 max abs diff) on a full ResNet-18 round-trip (write → read → execute → compare against the original model). That's a real, verifiable gap it fills — not a claim about vendor-SDK hardware validation, which we have not yet performed.
 
 ### NON-Goals
 - Do NOT chase SOTA accuracy
