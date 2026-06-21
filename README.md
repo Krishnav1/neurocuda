@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://python.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-orange)](https://pytorch.org)
-[![PyPI](https://img.shields.io/badge/pypi-neurocuda-blue)](https://pypi.org/project/neurocuda/)
+[![PyPI](https://img.shields.io/pypi/v/neurocuda?color=blue)](https://pypi.org/project/neurocuda/)
 [![Tests](https://img.shields.io/badge/tests-70%20passed-green)](tests/)
 
 ---
