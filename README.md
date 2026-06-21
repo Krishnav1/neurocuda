@@ -472,40 +472,65 @@ python examples/test_converter_5d.py
 
 ## Reproduce Our Results
 
-### Gate 2: ANN ResNet-18 Baseline
+### One Command — `reproduce.py`
 
 ```bash
-# Train ResNet-18 on CIFAR-10 to ≥93% (target achieved: 95.56%)
+# Clone → install → reproduce — that's it
+git clone https://github.com/neurocuda/neurocuda.git
+cd neurocuda
+pip install -r requirements.txt
+
+# Fast verification — NMNIST only (~4 min, produces 99.88% ± 0.02%)
+python reproduce.py --quick
+
+# Full reproduction — all benchmarks (~20 min)
+python reproduce.py --all
+
+# Robotics pipeline only (~2 min)
+python reproduce.py --demo
+
+# List available benchmarks
+python reproduce.py --list
+```
+
+**What `reproduce.py` does:**
+1. Auto-checks for NMNIST data — downloads if missing
+2. Runs each benchmark with proper seeds and full test sets
+3. Prints a summary table matching the README exactly
+4. Cross-checks results against README targets (PASS/CHECK)
+5. Exits 0 if all required benchmarks pass
+
+**Expected output (--quick):**
+```
+NMNIST CONVERSION BENCHMARK (3 seeds)
+──────────────────────────────────────
+  ANN:          99.70% ± 0.00%
+  SNN (IF):     99.90% ± 0.04%
+  Gap:          -0.20% ± 0.04%
+  Sparsity:     91.3% ± 0.5%
+
+CROSS-CHECK vs README
+  ✅ NMNIST Conversion: Matches README numbers
+  Overall: ✅ ALL REQUIRED BENCHMARKS PASS
+```
+
+### Individual Benchmarks (Manual)
+
+```bash
+# NMNIST multi-seed conversion
+python examples/demo_a_multiseed.py --seeds 0 1 2 --n_train 20000
+
+# CartPole conversion (stochastic — ~29% seed success)
+python examples/demo_b_conversion_v4.py --seeds 0 1 2 42 123
+
+# Robotics full pipeline
+python examples/demo_c_robotics_perception.py
+
+# CIFAR-10 ResNet-18 (long-running)
 python gate2_train_ann.py --seed 0 --epochs 200
-```
-
-### Gate 3: QCFS Conversion
-
-```bash
-# Run QCFS conversion on CIFAR-10 ResNet-18 (gap ≤5%, achieved: 0.95%)
 python gate3_qcfs_convert.py --seed 0 --epochs 30 --T 32
-```
-
-### Gate 5: NeuroBench Reporting
-
-```bash
-# Standard-format, multi-seed, multi-backend reporting
 python gate5_neurobench.py --seeds 0 1 2 --T 32
-```
-
-### NIR Round-Trip Verification
-
-```bash
-# Write → Read → Execute → Compare (verified: 0.000000 max abs diff)
 python verify_nir_trained.py --seed 0
-```
-
-### NMNIST Full Pipeline (60K data)
-
-```bash
-# Full dataset conversion (requires prep_nmnist.py first)
-python examples/prep_nmnist.py          # Download and prepare NMNIST data
-python examples/iftune_demo_a.py        # Full 60K conversion (achieves 99.65%+)
 ```
 
 ---
@@ -550,6 +575,7 @@ neurocuda/
 │   ├── debug_cartpole_gap.py        # ANN→SNN signal mismatch debugger
 │   └── prep_nmnist.py               # NMNIST data downloader
 │
+├── reproduce.py                     # One-command benchmark reproduction
 ├── gate2_train_ann.py               # GATE 2: ANN ResNet training
 ├── gate3_qcfs_convert.py            # GATE 3: QCFS conversion
 ├── gate4_fix_layer_norm.py          # GATE 4: Methods re-testing
