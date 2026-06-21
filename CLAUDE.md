@@ -10,6 +10,39 @@
 6. **Report failures first.** "Gate 2 FAILED. Cause: X. Options: Y."
 7. **No marketing language.** No "world-class," "nobody has done this," "🔥." Just measurements.
 
+## WORK RULES — How Claude Must Work (read before every task)
+
+### Rule 1: NEVER say "done" until it's TESTED
+- If you write code, you MUST run it and show the output.
+- If you can't test something (needs GPU, needs ROS2, needs hardware), SAY SO CLEARLY.
+- Label: "✅ Tested and working" vs "🔲 Code written, not tested (needs X)"
+- Never say "all done" when tests fail or when you skipped testing.
+
+### Rule 2: Complete ONE thing before starting another
+- Finish the current task → Test it → Commit → Then move to next.
+- Don't open 5 threads and leave them all half-finished.
+- If blocked on something (like a download), state what you're waiting for and do something useful in parallel.
+
+### Rule 3: Commit AFTER completion, not before
+- Only commit when: code is written + tested + verified.
+- Commit message must describe what was TESTED, not just what was written.
+- If you can't test, the commit message must say "UNTESTED" at the start.
+
+### Rule 4: Think before you act
+- Before writing code, explain in simple words: what you're doing, why, and how you'll test it.
+- If multiple approaches exist, pick the best one and explain why.
+- If you're stuck, say so. Don't pretend something works.
+
+### Rule 5: Explain in simple words
+- After any task, explain what happened in 2-3 simple sentences.
+- No technical jargon unless the user asks for it.
+- "I built X. I tested it with Y. The result was Z. Next step is W."
+
+### Rule 6: Don't make shortcuts
+- Need ROS2? Install it properly or say you can't. Don't build a "simulated" version and call it done.
+- Need GPU? Use GPU or say it's CPU-only. Don't fake results.
+- Need to test 3 seeds? Run 3 seeds. Don't run 1 and extrapolate.
+
 ## Project Identity
 
 **NeuroCUDA is a systems/tooling contribution.** A pip-installable compiler that takes PyTorch models and deploys them across GPU, CPU, Loihi 2 simulator, and FPGA through one API call.

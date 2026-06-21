@@ -1,0 +1,32 @@
+# Large files
+data/
+checkpoints/
+*.pt
+*.pth
+*.zip
+*.tar.gz
+ros2_humble/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
+paper/

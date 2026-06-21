@@ -1,0 +1,67 @@
+# NeuroCUDA + ROS2 Jazzy + CUDA
+# docker build -t neurocuda:ros2 -f Dockerfile.ros2 .
+# docker run -it --gpus all --network=host neurocuda:ros2 bash
+FROM nvidia/cuda:12.6-devel-ubuntu24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=en_US.UTF-8
+
+# =========================================================================
+# System dependencies
+# =========================================================================
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    locales curl gnupg2 lsb-release software-properties-common \
+    python3-pip python3-dev python3-colcon-common-extensions \
+    wget git \
+    && locale-gen en_US en_US.UTF-8 \
+    && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 \
+    && rm -rf /var/lib/apt/lists/*
+
+# =========================================================================
+# ROS2 Jazzy (Ubuntu 24.04 Noble)
+# =========================================================================
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+    -o /usr/share/keyrings/ros-archive-keyring.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+    http://packages.ros.org/ros2/ubuntu noble main" \
+    > /etc/apt/sources.list.d/ros2.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+    ros-jazzy-ros-base \
+    ros-jazzy-sensor-msgs \
+    ros-jazzy-vision-msgs \
+    ros-jazzy-cv-bridge \
+    python3-rosdep2 \
+    && rosdep init && rosdep update \
+    && rm -rf /var/lib/apt/lists/*
+
+# =========================================================================
+# NeuroCUDA + PyTorch CUDA
+# =========================================================================
+RUN pip3 install --no-cache-dir --break-system-packages \
+    torch numpy \
+    && pip3 install --no-cache-dir --break-system-packages neurocuda
+
+# =========================================================================
+# Event camera ROS2 packages (optional)
+# =========================================================================
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ros-jazzy-event-camera-msgs \
+    ros-jazzy-event-camera-py \
+    || echo "Event camera packages not available — skipping" \
+    && rm -rf /var/lib/apt/lists/*
+
+# =========================================================================
+# Workspace
+# =========================================================================
+RUN mkdir -p /workspace/src
+WORKDIR /workspace
+
+# Source ROS2 on shell start
+RUN echo "source /opt/ros/jazzy/setup.bash" >> /root/.bashrc
+
+# Entrypoint
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["bash"]

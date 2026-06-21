@@ -1,0 +1,32 @@
+# NeuroCUDA ROS2 Development Environment
+# docker compose up -d && docker compose exec neurocuda bash
+
+services:
+  neurocuda:
+    build:
+      context: .
+      dockerfile: Dockerfile.ros2
+    image: neurocuda:ros2
+    container_name: neurocuda_ros2
+    network_mode: host
+    ipc: host
+    privileged: true
+    stdin_open: true
+    tty: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, utility, compute]
+    environment:
+      - DISPLAY=${DISPLAY}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - QT_X11_NO_MITSHM=1
+    volumes:
+      - ./neurocuda_ros2:/workspace/src/neurocuda_ros2:rw
+      - .:/neurocuda:rw
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    working_dir: /workspace
