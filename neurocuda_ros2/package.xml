@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>neurocuda_ros2</name>
+  <version>0.2.0</version>
+  <description>
+    NeuroCUDA ROS2 — Spiking Neural Network inference and control for ROS2 robots.
+    One command to add SNN perception and control to any ROS2 system.
+    Supports event cameras, regular cameras, and sensor streams.
+  </description>
+
+  <maintainer email="krishna@neurocuda.dev">Krishna Varma</maintainer>
+
+  <license>MIT</license>
+
+  <url type="repository">https://github.com/neurocuda/neurocuda</url>
+  <url type="bugtracker">https://github.com/neurocuda/neurocuda/issues</url>
+
+  <!-- Core dependencies -->
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>vision_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>cv_bridge</depend>
+
+  <!-- Event camera support (optional) -->
+  <depend>event_camera_msgs</depend>
+
+  <!-- Python deps -->
+  <depend>python3-neurocuda</depend>
+  <depend>python3-torch</depend>
+  <depend>python3-numpy</depend>
+
+  <!-- Build -->
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+  <!-- Test -->
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

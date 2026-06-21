@@ -1,0 +1,94 @@
+# NeuroCUDA ROS2 — Model Configuration
+# All available SNN models with ROS2 parameters
+
+models:
+  # Event Camera Vision
+  cnn-nmnist-snn:
+    full_name: "neurocuda/cnn-nmnist-snn"
+    task: classification
+    num_classes: 10
+    timesteps: 16
+    input_channels: 2
+    input_height: 34
+    input_width: 34
+    input_type: events
+    class_names: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+    sparsity: 91.9
+    accuracy: 99.95
+
+  robotics-perception-snn:
+    full_name: "neurocuda/robotics-perception-snn"
+    task: classification
+    num_classes: 10
+    timesteps: 16
+    input_channels: 2
+    input_height: 34
+    input_width: 34
+    input_type: events
+    class_names: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+    sparsity: 92.6
+    accuracy: 99.85
+
+  # Image Classification
+  resnet18-cifar10-snn:
+    full_name: "neurocuda/resnet18-cifar10-snn"
+    task: classification
+    num_classes: 10
+    timesteps: 32
+    input_channels: 3
+    input_height: 32
+    input_width: 32
+    input_type: image
+    class_names: ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
+    sparsity: 93.7
+    accuracy: 94.61
+
+  mlp-mnist-snn:
+    full_name: "neurocuda/mlp-mnist-snn"
+    task: classification
+    num_classes: 10
+    timesteps: 16
+    input_channels: 1
+    input_height: 28
+    input_width: 28
+    input_type: image
+    class_names: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+    accuracy: 96.19
+
+  # Reinforcement Learning / Control
+  dqn-cartpole-snn:
+    full_name: "neurocuda/dqn-cartpole-snn"
+    task: control
+    num_actions: 2
+    timesteps: 16
+    state_dim: 4
+    action_names: ["left", "right"]
+    action_mode: discrete
+    sparsity: 74.5
+    solved: "100% (best seed)"
+
+  lif-dqn-cartpole-snn:
+    full_name: "neurocuda/lif-dqn-cartpole-snn"
+    task: control
+    num_actions: 2
+    timesteps: 16
+    state_dim: 4
+    action_names: ["left", "right"]
+    action_mode: discrete
+    sparsity: 68.5
+    solved: "100% (direct LIF training)"
+
+# Hardware-specific overrides
+hardware:
+  gpu:
+    device: cuda
+    batch_size: 1
+  cpu:
+    device: cpu
+    batch_size: 1
+  loihi2:
+    device: loihi
+    backend: loihi
+  fpga:
+    device: fpga
+    backend: sc-neurocore
