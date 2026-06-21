@@ -136,10 +136,11 @@ def export_nmnist_cnn_snn():
     print(f"  QCFS: {qcfs_acc:.2f}% | IF: {if_acc:.2f}% | Gap: {99.70 - if_acc:.2f}%")
     print(f"  Sparsity: {sparsity:.1f}% | Time: {conv_time:.0f}s")
 
-    # Save
+    # Save — extract inner model from TemporalWrapper
     os.makedirs("./checkpoints/hub", exist_ok=True)
     save_path = "./checkpoints/hub/nmnist_cnn_snn.pt"
-    torch.save(snn_model.state_dict(), save_path)
+    # snn_model is TemporalWrapper — save inner model_4d to match hub architecture
+    torch.save(snn_model.model_4d.state_dict(), save_path)
 
     # Save model card
     card = {
@@ -381,7 +382,16 @@ def export_cartpole_dqn_snn():
             self.buffer.append((s, a, r, ns, d))
         def sample(self, bs):
             batch = random.sample(self.buffer, min(bs, len(self.buffer)))
-            return (torch.tensor(np.array([x[i] for x in batch]), dtype=torch.float32) for i in range(5))
+            tensors = []
+            for i in range(5):
+                arr = np.array([x[i] for x in batch])
+                if i == 1:  # actions → int64
+                    tensors.append(torch.tensor(arr, dtype=torch.long))
+                elif i == 4:  # dones → float32
+                    tensors.append(torch.tensor(arr, dtype=torch.float32))
+                else:  # states, rewards, next_states → float32
+                    tensors.append(torch.tensor(arr, dtype=torch.float32))
+            return tuple(tensors)
         def __len__(self):
             return len(self.buffer)
 

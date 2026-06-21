@@ -452,21 +452,20 @@ def _build_model(model_name, device):
     from models import IFNeuron, LIFNeuron
 
     # --- Event Camera / NMNIST models ---
+    # Architecture matches POST-conversion state: BN folded, activations renamed
     if "nmnist" in model_name or "robotics" in model_name:
         class NMNISTCNNSNN(nn.Module):
             def __init__(self):
                 super().__init__()
-                self.conv1 = nn.Conv2d(2, 32, 5, padding=2, bias=False)
-                self.bn1 = nn.BatchNorm2d(32)
-                self.if1 = IFNeuron(thresh=2.0, alpha=2.0, num_channels=32)
+                # BN is folded during conversion → Conv has bias, no BN layer
+                self.conv1 = nn.Conv2d(2, 32, 5, padding=2, bias=True)
+                self.act1 = IFNeuron(thresh=2.0, alpha=2.0, num_channels=32)  # name matches converted model
                 self.pool1 = nn.AvgPool2d(2)
-                self.conv2 = nn.Conv2d(32, 64, 5, padding=2, bias=False)
-                self.bn2 = nn.BatchNorm2d(64)
-                self.if2 = IFNeuron(thresh=2.0, alpha=2.0, num_channels=64)
+                self.conv2 = nn.Conv2d(32, 64, 5, padding=2, bias=True)
+                self.act2 = IFNeuron(thresh=2.0, alpha=2.0, num_channels=64)
                 self.pool2 = nn.AvgPool2d(2)
-                self.conv3 = nn.Conv2d(64, 128, 3, padding=1, bias=False)
-                self.bn3 = nn.BatchNorm2d(128)
-                self.if3 = IFNeuron(thresh=2.0, alpha=2.0, num_channels=128)
+                self.conv3 = nn.Conv2d(64, 128, 3, padding=1, bias=True)
+                self.act3 = IFNeuron(thresh=2.0, alpha=2.0, num_channels=128)
                 self.pool3 = nn.AvgPool2d(2)
                 self.flatten = nn.Flatten()
                 self.fc = nn.Linear(2048, 10)
@@ -476,9 +475,9 @@ def _build_model(model_name, device):
                 if x.dim() == 5:
                     B, T, C, H, W = x.shape
                     x = x.reshape(B * T, C, H, W)
-                x = self.pool1(self.if1(self.bn1(self.conv1(x))))
-                x = self.pool2(self.if2(self.bn2(self.conv2(x))))
-                x = self.pool3(self.if3(self.bn3(self.conv3(x))))
+                x = self.pool1(self.act1(self.conv1(x)))
+                x = self.pool2(self.act2(self.conv2(x)))
+                x = self.pool3(self.act3(self.conv3(x)))
                 x = self.flatten(x)
                 x = self.fc(x)
                 if B is not None:
