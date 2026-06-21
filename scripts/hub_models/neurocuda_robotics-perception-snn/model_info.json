@@ -1,0 +1,28 @@
+{
+  "task": "robotics-perception",
+  "category": "vision",
+  "dataset": "N-MNIST (event camera)",
+  "architecture": "3-layer CNN (2 input channels, 34\u00d734), 5D-native",
+  "training": "ANN \u2192 CS-QCFS \u2192 IF + BPTT FT (conversion, 5 epochs, 20K data)",
+  "ann_accuracy": 99.7,
+  "snn_accuracy": 99.95,
+  "gap": -0.25,
+  "sparsity": 92.06,
+  "energy_per_inference_uj": 13.02,
+  "energy_vs_ann_pct": 49,
+  "params": 147466,
+  "size_kb": 576,
+  "t": 16,
+  "hardware_validated": "GPU, CPU, Loihi 2 simulator, NIR-exported",
+  "nir_exportable": true,
+  "status": "production",
+  "tags": [
+    "vision",
+    "robotics",
+    "event-camera",
+    "n-mnist",
+    "perception",
+    "energy"
+  ],
+  "description": "Full robotics perception pipeline \u2014 event camera \u2192 SNN \u2192 deploy. 99.95% accuracy (beats ANN). 92% sparse. 49% energy reduction vs ANN. NIR-exported and ready for Loihi 2 / SpiNNaker / FPGA deployment."
+}

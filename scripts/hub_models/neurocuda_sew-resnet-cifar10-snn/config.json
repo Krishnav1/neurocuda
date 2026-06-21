@@ -1,0 +1,21 @@
+{
+  "model_name": "neurocuda/sew-resnet-cifar10-snn",
+  "model_type": "neurocuda_snn",
+  "neurocuda_version": "0.2.0",
+  "architecture": "SEW-ResNet (Spiking Element-Wise ResNet, 18 layers)",
+  "task": "image-classification",
+  "category": "vision",
+  "t": 8,
+  "params": 11170000,
+  "status": "beta",
+  "tags": [
+    "vision",
+    "cifar-10",
+    "sew-resnet",
+    "classification",
+    "direct-training",
+    "deep"
+  ],
+  "conversion_method": "Direct SNN training from scratch (BPTT, surrogate gradient, 50 epochs)",
+  "nir_exportable": true
+}

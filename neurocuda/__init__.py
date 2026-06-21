@@ -28,6 +28,7 @@ from .compiler import compile, list_backends, benchmark
 from .utils import energy_estimate, fold_batchnorm, validate_snn
 from .export.nir_exporter import to_nir, to_sc_neurocore, to_hls_cpp
 from . import backends
+from . import hub
 
 __version__ = "0.2.0"
 __all__ = [

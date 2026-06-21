@@ -1,0 +1,30 @@
+{
+  "task": "reinforcement-learning",
+  "category": "control",
+  "dataset": "CartPole-v1",
+  "architecture": "3-layer MLP DQN (4\u2192128\u2192128\u21922) with LIF neurons",
+  "training": "ANN weight transfer + BPTT FT (conversion, surrogate gradient)",
+  "ann_solved": "100% (early-stop at Train100\u2265195)",
+  "snn_solved_best": "100%",
+  "snn_solved_mean": 19.0,
+  "snn_solved_std": 26.0,
+  "sparsity": 74.5,
+  "sparsity_std": 2.1,
+  "params": 17922,
+  "size_kb": 70,
+  "num_seeds": 7,
+  "t": 16,
+  "hardware_validated": "GPU, CPU",
+  "nir_exportable": false,
+  "status": "beta",
+  "tags": [
+    "control",
+    "reinforcement-learning",
+    "cartpole",
+    "dqn",
+    "rl",
+    "conversion"
+  ],
+  "description": "DQN policy network converted to LIF SNN for CartPole control. Best seed reaches 100% solved. ~29% seed success rate \u2014 DQN training produces policies with varying robustness to ReLU\u2192LIF transfer. Use direct LIF training for 100% reliability.",
+  "note": "Stochastic benchmark. See neurocuda/lif-dqn-cartpole-snn for the reliable version."
+}

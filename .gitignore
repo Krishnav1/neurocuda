@@ -34,3 +34,6 @@ files.zip
 # OS
 .DS_Store
 Thumbs.db
+*.bin
+checkpoints/
+paper/

@@ -1,0 +1,21 @@
+{
+  "model_name": "neurocuda/robotics-perception-snn",
+  "model_type": "neurocuda_snn",
+  "neurocuda_version": "0.2.0",
+  "architecture": "3-layer CNN (2 input channels, 34\u00d734), 5D-native",
+  "task": "robotics-perception",
+  "category": "vision",
+  "t": 16,
+  "params": 147466,
+  "status": "production",
+  "tags": [
+    "vision",
+    "robotics",
+    "event-camera",
+    "n-mnist",
+    "perception",
+    "energy"
+  ],
+  "conversion_method": "ANN \u2192 CS-QCFS \u2192 IF + BPTT FT (conversion, 5 epochs, 20K data)",
+  "nir_exportable": true
+}

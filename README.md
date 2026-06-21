@@ -7,6 +7,7 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-orange)](https://pytorch.org)
 [![PyPI](https://img.shields.io/pypi/v/neurocuda?color=blue)](https://pypi.org/project/neurocuda/)
 [![Tests](https://img.shields.io/badge/tests-70%20passed-green)](tests/)
+[![HuggingFace](https://img.shields.io/badge/🤗-HuggingFace-yellow)](https://huggingface.co/Krishnav1234)
 
 ---
 
@@ -410,6 +411,50 @@ List available hardware backends.
 ```python
 nc.list_backends()
 # → {'gpu': 'PyTorch CUDA backend', 'cpu': 'PyTorch CPU backend', 'loihi': 'Loihi 2 IF simulator'}
+```
+
+---
+
+## Model Hub — Pre-Converted Spiking Models
+
+Pre-converted, pre-validated, deployment-ready spiking neural networks. One line to load — no training, no conversion needed.
+
+```python
+import neurocuda as nc
+
+# List available models
+print(nc.hub.list())
+
+# Load a pre-converted SNN — downloads from HuggingFace automatically
+snn, info = nc.hub.load("neurocuda/cnn-nmnist-snn")
+# snn is ready to use — binary IF spikes, stateful membrane, 92% sparse
+```
+
+### Available Models
+
+| Model | Task | Accuracy | Size | Status |
+|-------|------|----------|------|--------|
+| `cnn-nmnist-snn` | Event camera vision (N-MNIST) | **99.88%** ± 0.02% | 576 KB | ✅ |
+| `robotics-perception-snn` | Robotics perception pipeline | **99.95%** | 576 KB | ✅ |
+| `resnet18-cifar10-snn` | CIFAR-10 classification | **94.61%** ± 0.14% | 42 MB | ✅ |
+| `mlp-mnist-snn` | MNIST digit recognition | **97.4%** | 1 MB | ✅ |
+| `lif-dqn-cartpole-snn` | CartPole control (direct SNN) | **100%** solved | 70 KB | ✅ |
+| `dqn-cartpole-snn` | CartPole control (converted) | **100%** best | 70 KB | ⚠️ |
+| `strongcnn-cifar10-snn` | CIFAR-10 StrongCNN | **74.3%** | 18 MB | ⚠️ |
+| `sew-resnet-cifar10-snn` | CIFAR-10 SEW-ResNet | **67.7%** | 42 MB | ⚠️ |
+
+🔗 **HuggingFace**: [huggingface.co/Krishnav1234](https://huggingface.co/Krishnav1234)
+
+### Hub API
+
+```python
+nc.hub.list()                    # List all available models
+nc.hub.list(category="vision")   # Filter by category (vision/control/audio/industrial)
+nc.hub.list(status="production") # Filter by status (production/beta/planned)
+nc.hub.search("robotics")        # Search models by keyword
+nc.hub.info("model-name")        # Get full model details (accuracy, sparsity, hardware)
+nc.hub.load("model-name")        # Load model — downloads from HuggingFace automatically
+nc.hub.categories()              # List model categories
 ```
 
 ---

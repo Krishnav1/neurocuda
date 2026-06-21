@@ -1,0 +1,20 @@
+{
+  "model_name": "neurocuda/strongcnn-cifar10-snn",
+  "model_type": "neurocuda_snn",
+  "neurocuda_version": "0.2.0",
+  "architecture": "StrongCNN (7-layer, BatchNorm, wider channels)",
+  "task": "image-classification",
+  "category": "vision",
+  "t": 16,
+  "params": 4800000,
+  "status": "beta",
+  "tags": [
+    "vision",
+    "cifar-10",
+    "strongcnn",
+    "classification",
+    "medium"
+  ],
+  "conversion_method": "ANN \u2192 QCFS \u2192 IF + BPTT FT (conversion + fine-tune)",
+  "nir_exportable": true
+}

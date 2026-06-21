@@ -1,0 +1,21 @@
+{
+  "model_name": "neurocuda/resnet18-cifar10-snn",
+  "model_type": "neurocuda_snn",
+  "neurocuda_version": "0.2.0",
+  "architecture": "ResNet-18 (CIFAR variant, 8 residual blocks, skip connections)",
+  "task": "image-classification",
+  "category": "vision",
+  "t": 32,
+  "params": 11173962,
+  "status": "production",
+  "tags": [
+    "vision",
+    "cifar-10",
+    "resnet",
+    "classification",
+    "deep",
+    "residual"
+  ],
+  "conversion_method": "ANN \u2192 QCFS \u2192 IF (direct conversion, no fine-tune). T=32.",
+  "nir_exportable": true
+}

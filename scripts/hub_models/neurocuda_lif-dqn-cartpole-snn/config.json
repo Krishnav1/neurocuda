@@ -1,0 +1,21 @@
+{
+  "model_name": "neurocuda/lif-dqn-cartpole-snn",
+  "model_type": "neurocuda_snn",
+  "neurocuda_version": "0.2.0",
+  "architecture": "3-layer MLP DQN (4\u2192128\u2192128\u21922) with LIF neurons",
+  "task": "reinforcement-learning",
+  "category": "control",
+  "t": 16,
+  "params": 17922,
+  "status": "production",
+  "tags": [
+    "control",
+    "reinforcement-learning",
+    "cartpole",
+    "dqn",
+    "rl",
+    "direct-training"
+  ],
+  "conversion_method": "Direct LIF SNN training from scratch (BPTT + surrogate gradient)",
+  "nir_exportable": false
+}

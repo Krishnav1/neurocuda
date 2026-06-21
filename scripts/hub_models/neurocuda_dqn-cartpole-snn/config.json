@@ -1,0 +1,21 @@
+{
+  "model_name": "neurocuda/dqn-cartpole-snn",
+  "model_type": "neurocuda_snn",
+  "neurocuda_version": "0.2.0",
+  "architecture": "3-layer MLP DQN (4\u2192128\u2192128\u21922) with LIF neurons",
+  "task": "reinforcement-learning",
+  "category": "control",
+  "t": 16,
+  "params": 17922,
+  "status": "beta",
+  "tags": [
+    "control",
+    "reinforcement-learning",
+    "cartpole",
+    "dqn",
+    "rl",
+    "conversion"
+  ],
+  "conversion_method": "ANN weight transfer + BPTT FT (conversion, surrogate gradient)",
+  "nir_exportable": false
+}

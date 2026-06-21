@@ -1,0 +1,29 @@
+{
+  "task": "event-camera-vision",
+  "category": "vision",
+  "dataset": "N-MNIST",
+  "architecture": "3-layer CNN (2 input channels, 34\u00d734)",
+  "training": "ANN \u2192 CS-QCFS \u2192 IF + BPTT FT (conversion)",
+  "ann_accuracy": 99.7,
+  "snn_accuracy": 99.88,
+  "snn_accuracy_std": 0.02,
+  "gap": -0.18,
+  "sparsity": 91.7,
+  "sparsity_std": 0.5,
+  "params": 147466,
+  "size_kb": 576,
+  "num_seeds": 3,
+  "t": 16,
+  "hardware_validated": "GPU, CPU, Loihi 2 simulator",
+  "nir_exportable": true,
+  "status": "production",
+  "tags": [
+    "vision",
+    "event-camera",
+    "n-mnist",
+    "classification",
+    "robotics",
+    "flagship"
+  ],
+  "description": "Event-camera object classification SNN. Beats the original ANN by 0.18%. 92% sparse \u2014 only 8% of neurons fire. Best-in-class conversion. Our flagship model."
+}

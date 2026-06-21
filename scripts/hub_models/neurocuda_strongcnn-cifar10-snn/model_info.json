@@ -1,0 +1,26 @@
+{
+  "task": "image-classification",
+  "category": "vision",
+  "dataset": "CIFAR-10",
+  "architecture": "StrongCNN (7-layer, BatchNorm, wider channels)",
+  "training": "ANN \u2192 QCFS \u2192 IF + BPTT FT (conversion + fine-tune)",
+  "ann_accuracy": 80.4,
+  "snn_accuracy": 74.3,
+  "gap": 6.0,
+  "params": 4800000,
+  "size_mb": 18.3,
+  "num_seeds": 1,
+  "t": 16,
+  "hardware_validated": "GPU, CPU",
+  "nir_exportable": true,
+  "status": "beta",
+  "tags": [
+    "vision",
+    "cifar-10",
+    "strongcnn",
+    "classification",
+    "medium"
+  ],
+  "description": "7-layer CNN SNN for CIFAR-10. Gap of 6% with conversion + fine-tuning. Larger gap than ResNet-18 due to higher non-linearity. Good for studying conversion challenges in medium-depth networks.",
+  "note": "Single seed result. Multi-seed verification pending."
+}

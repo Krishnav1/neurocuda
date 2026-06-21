@@ -1,0 +1,24 @@
+{
+  "task": "reinforcement-learning",
+  "category": "control",
+  "dataset": "CartPole-v1",
+  "architecture": "3-layer MLP DQN (4\u2192128\u2192128\u21922) with LIF neurons",
+  "training": "Direct LIF SNN training from scratch (BPTT + surrogate gradient)",
+  "snn_solved": "100% (solved at ~350 episodes)",
+  "sparsity": 68.5,
+  "params": 17922,
+  "size_kb": 70,
+  "t": 16,
+  "hardware_validated": "GPU, CPU",
+  "nir_exportable": false,
+  "status": "production",
+  "tags": [
+    "control",
+    "reinforcement-learning",
+    "cartpole",
+    "dqn",
+    "rl",
+    "direct-training"
+  ],
+  "description": "LIF SNN DQN trained from scratch via BPTT with surrogate gradients. 100% reliable \u2014 always reaches 100% solved. The recommended approach for spiking reinforcement learning. No conversion needed \u2014 native SNN training."
+}

@@ -1,0 +1,25 @@
+{
+  "task": "image-classification",
+  "category": "vision",
+  "dataset": "CIFAR-10",
+  "architecture": "SEW-ResNet (Spiking Element-Wise ResNet, 18 layers)",
+  "training": "Direct SNN training from scratch (BPTT, surrogate gradient, 50 epochs)",
+  "snn_accuracy": 67.7,
+  "params": 11170000,
+  "size_mb": 42.6,
+  "num_seeds": 1,
+  "t": 8,
+  "hardware_validated": "GPU, CPU",
+  "nir_exportable": true,
+  "status": "beta",
+  "tags": [
+    "vision",
+    "cifar-10",
+    "sew-resnet",
+    "classification",
+    "direct-training",
+    "deep"
+  ],
+  "description": "SEW-ResNet trained directly as an SNN from scratch (no ANN\u2192SNN conversion). 67.7% at T=8 timesteps. Demonstrates direct SNN training with surrogate gradients. Accuracy improves with more timesteps and training epochs.",
+  "note": "Single seed, 50 epochs. Extended training (200+ epochs) expected to reach 85%+."
+}

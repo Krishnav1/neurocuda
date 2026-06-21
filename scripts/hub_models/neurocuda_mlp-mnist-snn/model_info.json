@@ -1,0 +1,25 @@
+{
+  "task": "digit-classification",
+  "category": "vision",
+  "dataset": "MNIST",
+  "architecture": "3-layer MLP (784\u2192256\u2192256\u219210)",
+  "training": "ANN \u2192 QCFS \u2192 IF (direct conversion, no FT)",
+  "ann_accuracy": 97.8,
+  "snn_accuracy": 97.4,
+  "gap": 0.4,
+  "params": 269322,
+  "size_kb": 1052,
+  "t": 16,
+  "hardware_validated": "GPU, CPU",
+  "nir_exportable": true,
+  "status": "production",
+  "tags": [
+    "vision",
+    "digit",
+    "mnist",
+    "classification",
+    "quickstart",
+    "beginner"
+  ],
+  "description": "Simple MLP SNN for MNIST digit classification. The classic beginner example \u2014 great for learning the conversion pipeline. Converts in under 1 minute on CPU."
+}

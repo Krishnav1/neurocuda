@@ -1,0 +1,29 @@
+{
+  "task": "image-classification",
+  "category": "vision",
+  "dataset": "CIFAR-10",
+  "architecture": "ResNet-18 (CIFAR variant, 8 residual blocks, skip connections)",
+  "training": "ANN \u2192 QCFS \u2192 IF (direct conversion, no fine-tune). T=32.",
+  "ann_accuracy": 95.56,
+  "ann_accuracy_std": 0.11,
+  "snn_accuracy": 94.61,
+  "snn_accuracy_std": 0.14,
+  "gap": 0.95,
+  "sparsity": 93.7,
+  "params": 11173962,
+  "size_mb": 42.6,
+  "num_seeds": 3,
+  "t": 32,
+  "hardware_validated": "GPU, CPU, Loihi 2 simulator",
+  "nir_exportable": true,
+  "status": "production",
+  "tags": [
+    "vision",
+    "cifar-10",
+    "resnet",
+    "classification",
+    "deep",
+    "residual"
+  ],
+  "description": "Deep residual SNN for CIFAR-10 classification. Gap of 0.95% at T=32. Uses direct QCFS\u2192IF replacement without fine-tuning (standard for deep ResNets). Skip connections handled by Kahn's topology sort in NIR executor."
+}

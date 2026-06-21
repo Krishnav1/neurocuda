@@ -1,0 +1,21 @@
+{
+  "model_name": "neurocuda/mlp-mnist-snn",
+  "model_type": "neurocuda_snn",
+  "neurocuda_version": "0.2.0",
+  "architecture": "3-layer MLP (784\u2192256\u2192256\u219210)",
+  "task": "digit-classification",
+  "category": "vision",
+  "t": 16,
+  "params": 269322,
+  "status": "production",
+  "tags": [
+    "vision",
+    "digit",
+    "mnist",
+    "classification",
+    "quickstart",
+    "beginner"
+  ],
+  "conversion_method": "ANN \u2192 QCFS \u2192 IF (direct conversion, no FT)",
+  "nir_exportable": true
+}
