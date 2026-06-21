@@ -293,6 +293,18 @@ These rules are from `CLAUDE.md` and override any instinct to make results sound
 
 **Isn't**: A claim of novel science per component. QCFS (Bu et al., ICLR 2022), NIR (neuro-phys.org), and NeuroBench (neurobench.ai) are published work by other groups. The contribution is the **integration** — one tool that ties them together, verified honestly, with documented limitations.
 
+### How this compares to NIR and SNNToolBox
+
+NIR and SNNToolBox are both real, prior work, and NeuroCUDA depends on NIR directly for export. They are not competitors so much as adjacent layers:
+
+| Tool | What it does | What it doesn't do |
+|------|---------------|---------------------|
+| **NIR** | Vendor-neutral graph IR for spiking networks; lets one model description target multiple simulators (Lava, snnTorch, SpikingJelly, Sinabs) | Doesn't train, convert, or validate — it's a representation format, not a conversion or deployment pipeline |
+| **SNNToolBox** | ANN→SNN conversion from Keras/PyTorch, export to PyNN/Brian2/SpiNNaker/Loihi | No NeuroBench reporting, no bit-level validation against a vendor reference SDK, conversion gap not benchmarked against current QCFS-class methods |
+| **NeuroCUDA** | Conversion (QCFS→IF + BPTT fine-tune) + NIR export + multi-backend compile + NeuroBench reporting, in one pipeline, with code generation checked spike-for-spike against Intel's own Lava implementation | Doesn't reinvent IR or conversion theory — uses NIR and published conversion methods as building blocks |
+
+The reason this distinction matters: a conversion number alone (e.g. "94.49% accuracy") shows the math works. It does not show the *generated backend code* is correct. NeuroCUDA's 0/256,000 spike-level deviation result against Lava is a code-generation correctness check that, as far as we've found, no other open-source pipeline reports.
+
 ### NON-Goals
 - Do NOT chase SOTA accuracy
 - Do NOT claim physical silicon without physical silicon
