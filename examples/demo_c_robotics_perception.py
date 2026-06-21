@@ -189,7 +189,7 @@ if __name__ == "__main__":
         train_data = torch.load("./data/nmnist_train.pt", map_location="cpu",
                                 weights_only=False)
         # Small subset for QCFS calibration
-        n_train = min(5000, len(train_data["data"]))
+        n_train = min(20000, len(train_data["data"]))
         train_loader = DataLoader(
             TensorDataset(train_data["data"][:n_train],
                          train_data["targets"][:n_train]),
@@ -250,8 +250,8 @@ if __name__ == "__main__":
         ann_model,
         train_loader,
         test_loader=test_loader,
-        qcfs_epochs=3,
-        if_epochs=3,
+        qcfs_epochs=5,
+        if_epochs=5,
         strategy="qcfs_if_ft",
         channel_wise=True,   # CS-QCFS: per-channel thresholds
         device=device,

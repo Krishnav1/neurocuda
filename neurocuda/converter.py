@@ -144,10 +144,26 @@ def _fold_batchnorms(model):
 def _forward_temporal(model, data, average=True):
     """Forward a stateless model on 5D temporal data.
 
-    For stateless models (QCFS, ANN with ReLU): reshape B*T → batch dim.
+    Handles BOTH model types:
+      A) 4D-native models: model expects (B,C,H,W) — reshape B*T → batch dim.
+      B) 5D-native models: model expects (B,T,C,H,W) and does its own
+         temporal averaging — pass through directly.
     Returns (B, ...) if average=True, else (B*T, ...).
     """
     B, T = data.size(0), data.size(1)
+
+    # Auto-detect model type on first sample (no wasted forward — reuse result)
+    try:
+        test_in = data[:, 0, :, :, :]  # 4D-native attempt
+        out_test = model(test_in)
+        _is_4d = True
+    except (ValueError, RuntimeError):
+        # 5D-native: model expects (B,T,C,H,W)
+        out_test = model(data)
+        out = out_test  # Model already did temporal averaging internally
+        return out if average else out_test
+
+    # 4D-native path
     flat = data.view(B * T, *data.shape[2:])     # (B*T, C, H, W)
     out_flat = model(flat)
     if not average:
@@ -383,6 +399,8 @@ def convert(ann_model, train_loader, test_loader=None,
     if verbose: print(f"  Replaced {n} activations → QCFS"
                       f"{' (per-channel)' if channel_wise else ' (per-layer)'}")
 
+    qcfs_model = qcfs_model.to(device)  # Move new QCFS params to correct device
+
     qcfs_model, qcfs_acc = _fine_tune_qcfs(
         qcfs_model, train_loader, test_loader, qcfs_epochs,
         lr_weight=1e-3, lr_lambda=5e-2, device=device, verbose=verbose)
@@ -401,6 +419,7 @@ def convert(ann_model, train_loader, test_loader=None,
         if_model = copy.deepcopy(qcfs_model)
         _fold_batchnorms(if_model)
         _transfer_qcfs_to_if(if_model, stats["thresholds"], channel_wise)
+        if_model = if_model.to(device)  # Move new IF params to correct device
         if_model.eval()
         if test_loader:
             stats["if_accuracy"] = _eval_if(if_model, test_loader, device)
@@ -412,6 +431,7 @@ def convert(ann_model, train_loader, test_loader=None,
     n_folded = _fold_batchnorms(if_model)
     if verbose: print(f"  Folded {n_folded} Conv→BN pairs")
     _transfer_qcfs_to_if(if_model, stats["thresholds"], channel_wise)
+    if_model = if_model.to(device)  # Move new IF params to correct device
 
     # --- Stage 3: IF fine-tune ---
     if verbose: print("[3/3] IF fine-tune (BPTT + surrogate gradient)...")
@@ -492,8 +512,17 @@ def measure_sparsity(snn_model, dataloader, device=None, max_batches=None):
             data = data.to(device)
             reset_spiking(snn_model)
             if data.dim() == 5:
+                # Auto-detect 4D-native vs 5D-native model
+                try:
+                    snn_model(data[:, 0, :, :, :])  # 4D test
+                    _4d_native = True
+                except (ValueError, RuntimeError):
+                    _4d_native = False
                 for t in range(data.size(1)):
-                    snn_model(data[:, t, :, :, :])
+                    if _4d_native:
+                        snn_model(data[:, t, :, :, :])       # 4D slice
+                    else:
+                        snn_model(data[:, t:t+1, :, :, :])   # 5D slice (T=1)
             else:
                 snn_model(data)
 
