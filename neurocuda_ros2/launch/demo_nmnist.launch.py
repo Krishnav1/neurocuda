@@ -1,23 +1,18 @@
 #!/usr/bin/env python3
 """
-Full NMNIST demo — event camera → SNN → detection → visualization.
+Full NMNIST demo with lifecycle management — event camera → SNN → detection.
 
 Usage:
     ros2 launch neurocuda_ros2 demo_nmnist.launch.py
-    ros2 launch neurocuda_ros2 demo_nmnist.launch.py model:=robotics-perception-snn
+    ros2 launch neurocuda_ros2 demo_nmnist.launch.py model:=vgg5_cifar10
 
-Requires:
-    - NeuroCUDA installed (pip install neurocuda)
-    - event_camera_msgs (for event camera replay)
-    - Optional: metavision_driver (for real Prophesee camera)
+For real Prophesee/iniVation cameras, set use_simulation:=false
 """
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, LogInfo, GroupAction
+from launch.actions import DeclareLaunchArgument, LogInfo
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
-from launch.conditions import IfCondition
-from launch.substitutions import PythonExpression
+from launch_ros.actions import LifecycleNode, Node
 
 
 def generate_launch_description():
@@ -30,8 +25,8 @@ def generate_launch_description():
         description="Use simulated events instead of real camera",
     )
 
-    # SNN Inference node
-    snn_node = Node(
+    # SNN Inference — lifecycle node
+    snn_node = LifecycleNode(
         package="neurocuda_ros2",
         executable="snn_infer",
         name="snn_inference",
@@ -43,8 +38,8 @@ def generate_launch_description():
         output="screen",
     )
 
-    # Spike visualization
-    spike_viz = Node(
+    # Spike visualization — lifecycle node
+    spike_viz = LifecycleNode(
         package="neurocuda_ros2",
         executable="spike_viz",
         name="spike_viz",
@@ -52,19 +47,27 @@ def generate_launch_description():
         output="screen",
     )
 
+    # Lifecycle manager — boots all nodes automatically
+    lifecycle_mgr = Node(
+        package="neurocuda_ros2",
+        executable="lifecycle_mgr",
+        name="lifecycle_manager_snn",
+        parameters=[{
+            "node_names": ["snn_inference", "spike_viz"],
+            "auto_manage": True,
+        }],
+        output="screen",
+    )
+
     return LaunchDescription([
-        model_arg,
-        use_sim_arg,
-        LogInfo(msg=["Starting NMNIST demo with model: ", LaunchConfiguration("model")]),
-        snn_node,
-        spike_viz,
+        model_arg, use_sim_arg,
+        LogInfo(msg=["🧠 NMNIST Demo | Model: ", LaunchConfiguration("model")]),
+        snn_node, spike_viz, lifecycle_mgr,
         LogInfo(msg=[
             "NeuroCUDA NMNIST Demo running!",
-            "\n  Model: ", LaunchConfiguration("model"),
-            "\n  Topics:",
-            "\n    /snn/detections — SnnDetection (class, confidence, top-k)",
-            "\n    /snn/spikes — SnnSpikeEvent (per-layer spike activity)",
-            "\n    /snn/sparsity — Float32 (overall sparsity %)",
-            "\n    /snn/status — SnnStatus (model metrics and device info)",
+            "\n  /snn/detections — SnnDetection (class, confidence, top-k)",
+            "\n  /snn/spikes — SnnSpikeEvent (per-layer spike activity)",
+            "\n  /snn/sparsity — Float32 (overall sparsity %)",
+            "\n  /snn/status — SnnStatus (model metrics and device info)",
         ]),
     ])

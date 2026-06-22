@@ -1,64 +1,140 @@
 #!/usr/bin/env python3
 """
-NeuroCUDA Spike Visualization — Monitor SNN activity in real-time.
+NeuroCUDA Spike Visualization — ROS2 Managed Lifecycle Node.
 
-Publishes spike raster data and sparsity metrics for visualization.
-Can be used with RViz2 or Foxglove for live spike monitoring.
+Monitors SNN spike activity and publishes per-layer spike statistics
+in real-time. Only active when the parent SNN node is active.
+
+Publishes:
+  /snn/spikes (neurocuda_msgs/SnnSpikeEvent) — per-layer spike counts
+  /snn/sparsity (std_msgs/Float32) — overall sparsity %
+
+Lifecycle:
+  Configure (load model) → Activate (start monitoring) →
+  Deactivate (pause) → Cleanup (free)
 
 Usage:
-    ros2 run neurocuda_ros2 spike_viz
-    ros2 run neurocuda_ros2 spike_viz --ros-args -p model:=cnn-nmnist-snn
-
-Output topics:
-    /snn/spike_raster — per-layer spike counts over time
-    /snn/sparsity — overall sparsity percentage
+  ros2 run neurocuda_ros2 spike_viz --ros-args -p model:=vgg5_cifar10
 """
 
 import rclpy
-from rclpy.node import Node
+from rclpy.lifecycle import Node
+from rclpy.lifecycle import State
+from rclpy.lifecycle import TransitionCallbackReturn
+
 from std_msgs.msg import Float32
 from neurocuda_msgs.msg import SnnSpikeEvent
 
 
 class SpikeVizNode(Node):
-    """Ros2 node for visualizing SNN spike activity."""
+    """Managed lifecycle node for SNN spike visualization."""
 
-    def __init__(self):
-        super().__init__("spike_viz")
+    def __init__(self, node_name="spike_viz"):
+        super().__init__(node_name=node_name)
+        self.model_loader = None
+        self.pub_timer = None
+        self._rate = 10.0
 
-        self.declare_parameter("model", "neurocuda/cnn-nmnist-snn")
-        self.declare_parameter("publish_rate", 10.0)  # Hz
-        self.declare_parameter("device", "auto")
+    # ==================================================================
+    # LIFECYCLE: on_configure
+    # ==================================================================
+    def on_configure(self, state: State) -> TransitionCallbackReturn:
+        self.get_logger().info("⚙️  Configuring spike visualization...")
 
-        model_name = self.get_parameter("model").value
-        rate = self.get_parameter("publish_rate").value
+        try:
+            self.declare_parameter("model", "neurocuda/cnn-nmnist-snn")
+            self.declare_parameter("publish_rate", 10.0)
+            self.declare_parameter("device", "auto")
 
-        # Load model
-        import torch
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+            model_name = self.get_parameter("model").value
+            self._rate = self.get_parameter("publish_rate").value
+            device_opt = self.get_parameter("device").value
 
-        from neurocuda_ros2.model_loader import ModelLoader
-        self.get_logger().info(f"Loading model for visualization: {model_name}")
-        self.model_loader = ModelLoader(model_name, device=device)
+            import torch
+            if device_opt == "auto":
+                device_opt = "cuda" if torch.cuda.is_available() else "cpu"
 
-        # Publishers
-        self.spike_pub = self.create_publisher(SnnSpikeEvent, "/snn/spikes", 10)
-        self.sparsity_pub = self.create_publisher(Float32, "/snn/sparsity", 10)
-        self.layer_info_pub = self.create_publisher(SnnSpikeEvent, "/snn/layer_info", 10, latch=True)
+            from neurocuda_ros2.model_loader import ModelLoader
+            self.get_logger().info(f"  Loading model: {model_name}")
+            self.model_loader = ModelLoader(model_name, device=device_opt)
 
-        # Timer
-        self.timer = self.create_timer(1.0 / rate, self.publish_spike_data)
+            self.get_logger().info(
+                f"  ✅ Model loaded: "
+                f"{self.model_loader.if_count + self.model_loader.lif_count} "
+                f"spiking layers"
+            )
 
-        # Publish static layer info once
+            # Lifecycle publishers
+            self.spike_pub = self.create_lifecycle_publisher(
+                SnnSpikeEvent, "/snn/spikes", 10)
+            self.sparsity_pub = self.create_lifecycle_publisher(
+                Float32, "/snn/sparsity", 10)
+            self.layer_info_pub = self.create_lifecycle_publisher(
+                SnnSpikeEvent, "/snn/layer_info", 10)
+
+            self.get_logger().info("  ✅ Configured — ready to activate")
+            return TransitionCallbackReturn.SUCCESS
+
+        except Exception as e:
+            self.get_logger().error(f"  ❌ Configure failed: {e}")
+            return TransitionCallbackReturn.FAILURE
+
+    # ==================================================================
+    # LIFECYCLE: on_activate
+    # ==================================================================
+    def on_activate(self, state: State) -> TransitionCallbackReturn:
+        self.get_logger().info("▶️  Activating — spike monitoring started")
         self._publish_layer_info()
+        self.pub_timer = self.create_timer(1.0 / self._rate, self.publish_spike_data)
+        return TransitionCallbackReturn.SUCCESS
 
-        self.get_logger().info(
-            f"Spike Viz ready | Model: {model_name} | "
-            f"{self.model_loader.if_count + self.model_loader.lif_count} spiking layers"
-        )
+    # ==================================================================
+    # LIFECYCLE: on_deactivate
+    # ==================================================================
+    def on_deactivate(self, state: State) -> TransitionCallbackReturn:
+        self.get_logger().info("⏸️  Deactivating — pausing spike monitoring")
+        if self.pub_timer:
+            self.destroy_timer(self.pub_timer)
+            self.pub_timer = None
+        return TransitionCallbackReturn.SUCCESS
 
+    # ==================================================================
+    # LIFECYCLE: on_cleanup
+    # ==================================================================
+    def on_cleanup(self, state: State) -> TransitionCallbackReturn:
+        self.get_logger().info("🧹 Cleaning up...")
+        try:
+            self.destroy_publisher(self.spike_pub)
+            self.destroy_publisher(self.sparsity_pub)
+            self.destroy_publisher(self.layer_info_pub)
+        except Exception:
+            pass
+        if self.model_loader:
+            del self.model_loader
+            self.model_loader = None
+        return TransitionCallbackReturn.SUCCESS
+
+    # ==================================================================
+    # LIFECYCLE: on_shutdown
+    # ==================================================================
+    def on_shutdown(self, state: State) -> TransitionCallbackReturn:
+        self.get_logger().info("🛑 Shutting down Spike Viz")
+        self.on_cleanup(state)
+        return TransitionCallbackReturn.SUCCESS
+
+    # ==================================================================
+    # LIFECYCLE: on_error
+    # ==================================================================
+    def on_error(self, state: State) -> TransitionCallbackReturn:
+        self.get_logger().error("⚠️  Error — attempting recovery")
+        self.on_cleanup(state)
+        return TransitionCallbackReturn.SUCCESS
+
+    # ------------------------------------------------------------------
+    # Publishing
+    # ------------------------------------------------------------------
     def _publish_layer_info(self):
-        """Publish static information about spiking layers as SnnSpikeEvent."""
+        """Publish one SnnSpikeEvent per spiking layer (static info)."""
         from models import IFNeuron, LIFNeuron
         for name, module in self.model_loader.model.named_modules():
             if isinstance(module, (IFNeuron, LIFNeuron)):
@@ -72,7 +148,9 @@ class SpikeVizNode(Node):
                 self.layer_info_pub.publish(msg)
 
     def publish_spike_data(self):
-        """Publish current spike statistics as structured messages."""
+        """Publish current per-layer spike statistics."""
+        if self.model_loader is None:
+            return
         stats = self.model_loader._get_spike_stats()
 
         # Sparsity
@@ -80,7 +158,7 @@ class SpikeVizNode(Node):
         sparsity_msg.data = stats["sparsity"]
         self.sparsity_pub.publish(sparsity_msg)
 
-        # Per-layer spike events — structured SnnSpikeEvent
+        # Per-layer spike events
         if stats["per_layer"]:
             for name, data in sorted(stats["per_layer"].items()):
                 msg = SnnSpikeEvent()
@@ -98,7 +176,7 @@ def main(args=None):
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        node.get_logger().info("Shutting down Spike Viz")
+        pass
     finally:
         node.destroy_node()
         rclpy.shutdown()

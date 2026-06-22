@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Launch SNN control node.
+Launch SNN control node with lifecycle management.
 
 Usage:
     ros2 launch neurocuda_ros2 control.launch.py
@@ -11,13 +11,12 @@ Usage:
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
+from launch_ros.actions import LifecycleNode, Node
 
 
 def generate_launch_description():
     model_arg = DeclareLaunchArgument(
-        "model",
-        default_value="neurocuda/dqn-cartpole-snn",
+        "model", default_value="neurocuda/dqn-cartpole-snn",
         description="SNN control model",
     )
     action_mode_arg = DeclareLaunchArgument(
@@ -33,7 +32,8 @@ def generate_launch_description():
         description="Control update period (seconds)",
     )
 
-    control_node = Node(
+    # SNN Control — managed lifecycle node
+    control_node = LifecycleNode(
         package="neurocuda_ros2",
         executable="snn_control",
         name="snn_control",
@@ -46,7 +46,20 @@ def generate_launch_description():
         output="screen",
     )
 
+    # Lifecycle Manager — auto-boots the control node
+    lifecycle_mgr = Node(
+        package="neurocuda_ros2",
+        executable="lifecycle_mgr",
+        name="lifecycle_manager_snn",
+        parameters=[{
+            "node_names": ["snn_control"],
+            "auto_manage": True,
+        }],
+        output="screen",
+    )
+
     return LaunchDescription([
         model_arg, action_mode_arg, num_actions_arg, period_arg,
-        control_node,
+        LogInfo(msg=["🎮 SNN Control | Model: ", LaunchConfiguration("model")]),
+        control_node, lifecycle_mgr,
     ])

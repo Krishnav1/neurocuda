@@ -27,6 +27,7 @@ setup(
             "snn_infer = neurocuda_ros2.snn_inference_node:main",
             "snn_control = neurocuda_ros2.snn_control_node:main",
             "spike_viz = neurocuda_ros2.spike_viz:main",
+            "lifecycle_mgr = neurocuda_ros2.lifecycle_manager:main",
         ],
     },
 )

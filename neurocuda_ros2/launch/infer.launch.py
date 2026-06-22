@@ -1,50 +1,50 @@
 #!/usr/bin/env python3
 """
-Launch SNN inference node with configurable model and camera.
+Launch SNN inference with lifecycle management.
+
+Launches 3 nodes:
+  1. snn_inference — lifecycle node (camera → SNN → detections)
+  2. spike_viz — lifecycle node (per-layer spike monitoring)
+  3. lifecycle_manager_snn — auto-boots lifecycle nodes
 
 Usage:
     ros2 launch neurocuda_ros2 infer.launch.py
-    ros2 launch neurocuda_ros2 infer.launch.py model:=cnn-nmnist-snn
-    ros2 launch neurocuda_ros2 infer.launch.py model:=robotics-perception-snn input_type:=events
+    ros2 launch neurocuda_ros2 infer.launch.py model:=vgg5_cifar10 device:=cuda
 """
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, LogInfo
-from launch.substitutions import LaunchConfiguration, TextSubstitution
-from launch_ros.actions import Node
+from launch.actions import DeclareLaunchArgument, LogInfo, RegisterEventHandler, EmitEvent
+from launch.event_handlers import OnProcessStart
+from launch.events import Shutdown
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import LifecycleNode, Node
 
 
 def generate_launch_description():
-    # Model name
     model_arg = DeclareLaunchArgument(
-        "model",
-        default_value="neurocuda/cnn-nmnist-snn",
-        description="SNN model to use for inference",
+        "model", default_value="neurocuda/cnn-nmnist-snn",
+        description="SNN model name from NeuroCUDA hub",
     )
-
-    # Input type: auto, image, or events
     input_type_arg = DeclareLaunchArgument(
-        "input_type",
-        default_value="auto",
+        "input_type", default_value="auto",
         description="Input type: auto, image, or events",
     )
-
-    # Device
     device_arg = DeclareLaunchArgument(
-        "device",
-        default_value="auto",
+        "device", default_value="auto",
         description="Device: auto, cuda, or cpu",
     )
-
-    # Timesteps
     T_arg = DeclareLaunchArgument(
-        "T",
-        default_value="16",
-        description="Number of timesteps for temporal integration",
+        "T", default_value="16",
+        description="Timesteps for temporal integration",
+    )
+    nodes_arg = DeclareLaunchArgument(
+        "managed_nodes",
+        default_value="['snn_inference', 'spike_viz']",
+        description="List of lifecycle nodes to manage",
     )
 
-    # SNN Inference Node
-    snn_node = Node(
+    # SNN Inference — managed lifecycle node
+    snn_node = LifecycleNode(
         package="neurocuda_ros2",
         executable="snn_infer",
         name="snn_inference",
@@ -57,8 +57,8 @@ def generate_launch_description():
         output="screen",
     )
 
-    # Spike Viz Node (optional monitoring)
-    spike_viz_node = Node(
+    # Spike Visualization — managed lifecycle node
+    spike_viz_node = LifecycleNode(
         package="neurocuda_ros2",
         executable="spike_viz",
         name="spike_viz",
@@ -68,12 +68,30 @@ def generate_launch_description():
         output="screen",
     )
 
+    # Lifecycle Manager — auto-boots all SNN nodes
+    lifecycle_mgr = Node(
+        package="neurocuda_ros2",
+        executable="lifecycle_mgr",
+        name="lifecycle_manager_snn",
+        parameters=[{
+            "node_names": ["snn_inference", "spike_viz"],
+            "auto_manage": True,
+        }],
+        output="screen",
+    )
+
     return LaunchDescription([
-        model_arg,
-        input_type_arg,
-        device_arg,
-        T_arg,
-        LogInfo(msg=LaunchConfiguration("model")),
+        model_arg, input_type_arg, device_arg, T_arg, nodes_arg,
+        LogInfo(msg=["NeuroCUDA SNN Inference | Model: ", LaunchConfiguration("model")]),
         snn_node,
         spike_viz_node,
+        lifecycle_mgr,
+        LogInfo(msg=[
+            "\n🧠 NeuroCUDA SNN Inference running!",
+            "\n  Topics:",
+            "\n    /snn/detections — SnnDetection (class, confidence, top-k, sparsity)",
+            "\n    /snn/spikes — SnnSpikeEvent (per-layer spike counts)",
+            "\n    /snn/sparsity — Float32 (overall sparsity %)",
+            "\n    /snn/status — SnnStatus (model, accuracy, device, latency)",
+        ]),
     ])
