@@ -80,6 +80,7 @@ class SNNInferenceNode(Node):
             self.declare_parameter("hardware_target", "")
             self.declare_parameter("publish_debug_image", True)
             self.declare_parameter("event_buffer_size", 10000)
+            self.declare_parameter("camera_topic", "/camera/image")
 
             self._model_name = self.get_parameter("model").value
             self._input_type = self.get_parameter("input_type").value
@@ -87,6 +88,7 @@ class SNNInferenceNode(Node):
             self._device_str = self.get_parameter("device").value
             self._hardware_target = self.get_parameter("hardware_target").value
             event_buffer_max = self.get_parameter("event_buffer_size").value
+            self._camera_topic = self.get_parameter("camera_topic").value
 
             # Resolve device
             if self._device_str == "auto":
@@ -122,8 +124,9 @@ class SNNInferenceNode(Node):
 
             # --- Subscriptions (only active when node is Active) ---
             if self._input_type in ("auto", "image"):
+                self.get_logger().info(f"  Subscribing to camera: {self._camera_topic}")
                 self.image_sub = self.create_subscription(
-                    Image, "/camera/image", self.image_callback, 10)
+                    Image, self._camera_topic, self.image_callback, 10)
 
             if self._input_type in ("auto", "events") and HAS_EVENT_MSGS:
                 self.event_sub = self.create_subscription(

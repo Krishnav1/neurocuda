@@ -21,15 +21,22 @@ except ImportError:
     NEUROCUDA_AVAILABLE = False
     print("[neurocuda_ros2] NeuroCUDA not installed. pip install neurocuda")
 
-# ROS2 imports (work when ROS2 environment is sourced)
+# ROS2 imports
+ROS2_AVAILABLE = False
+BRIDGE_AVAILABLE = False
+
 try:
     from sensor_msgs.msg import Image
-    from cv_bridge import CvBridge
     from neurocuda_msgs.msg import SnnDetection, SnnSpikeEvent, SnnStatus
     ROS2_AVAILABLE = True
 except ImportError:
-    ROS2_AVAILABLE = False
-    print("[neurocuda_ros2] ROS2 not available. Running in simulation mode.")
+    print("[neurocuda_ros2] ROS2 core not available. Running in simulation mode.")
+
+try:
+    from cv_bridge import CvBridge
+    BRIDGE_AVAILABLE = True
+except ImportError:
+    print("[neurocuda_ros2] cv_bridge not available. Using numpy-only image conversion.")
 
 
 class ModelLoader:
@@ -197,6 +204,8 @@ class ModelLoader:
 def image_to_tensor(ros_image, target_size=None):
     """Convert ROS2 Image message to PyTorch tensor.
 
+    Works with OR without cv_bridge — uses direct numpy conversion as fallback.
+
     Args:
         ros_image: sensor_msgs/Image
         target_size: (H, W) to resize to, or None
@@ -204,18 +213,65 @@ def image_to_tensor(ros_image, target_size=None):
     Returns:
         torch.Tensor of shape (1, C, H, W) normalized to [0, 1]
     """
-    if not ROS2_AVAILABLE:
-        raise ImportError("ROS2 (cv_bridge) required for image conversion")
+    # Extract raw bytes from ROS Image message
+    h = ros_image.height
+    w = ros_image.width
+    encoding = ros_image.encoding
+    data = ros_image.data
+    step = ros_image.step  # row stride in bytes
 
-    bridge = CvBridge()
-    cv_image = bridge.imgmsg_to_cv2(ros_image, desired_encoding="rgb8")
+    # Determine channels from encoding
+    if encoding == "rgb8":
+        channels = 3
+        dtype = np.uint8
+    elif encoding == "rgba8":
+        channels = 4
+        dtype = np.uint8
+    elif encoding == "mono8" or encoding == "8UC1":
+        channels = 1
+        dtype = np.uint8
+    elif encoding == "bgr8":
+        channels = 3
+        dtype = np.uint8
+    elif encoding == "32FC1":
+        channels = 1
+        dtype = np.float32
+    else:
+        # Default: assume rgb8
+        channels = 3
+        dtype = np.uint8
 
+    # Convert raw bytes to numpy array
+    np_arr = np.frombuffer(data, dtype=dtype).reshape(h, step // (step // w), -1)
+
+    # If step != width * channels, trim padding
+    expected_cols = w * (np.dtype(dtype).itemsize) * channels // (np.dtype(dtype).itemsize)
+    if step != expected_cols:
+        # Handle padded rows by taking only the valid columns
+        np_arr = np.frombuffer(data, dtype=dtype)
+        np_arr = np_arr.reshape(h, w, channels) if channels > 1 else np_arr.reshape(h, w)
+    else:
+        np_arr = np.frombuffer(data, dtype=dtype).reshape(h, w, channels) if channels > 1 else np.frombuffer(data, dtype=dtype).reshape(h, w)
+
+    # Ensure 3 channels
+    if len(np_arr.shape) == 2:
+        np_arr = np.stack([np_arr] * 3, axis=-1)
+    elif np_arr.shape[-1] == 4:
+        np_arr = np_arr[:, :, :3]  # drop alpha
+
+    # Resize if needed (using simple numpy slicing or nearest-neighbor)
     if target_size is not None:
-        import cv2
-        cv_image = cv2.resize(cv_image, (target_size[1], target_size[0]))
+        th, tw = target_size
+        # Simple resize: crop center or tile
+        if th < h and tw < w:
+            y0, x0 = (h - th) // 2, (w - tw) // 2
+            np_arr = np_arr[y0:y0 + th, x0:x0 + tw]
+        elif th > h or tw > w:
+            np_arr = np.pad(np_arr, ((0, max(0, th - h)), (0, max(0, tw - w)), (0, 0)),
+                           mode='edge')[:th, :tw]
 
     # HWC → CHW, uint8 → float32, [0,255] → [0,1]
-    tensor = torch.from_numpy(cv_image).permute(2, 0, 1).float() / 255.0
+    tensor = torch.from_numpy(np_arr.copy()).permute(2, 0, 1).float() / 255.0
     return tensor.unsqueeze(0)  # Add batch dim
 
 
