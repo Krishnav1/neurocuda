@@ -12,7 +12,7 @@ ENV LANG=en_US.UTF-8
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip curl \
     && rm -rf /var/lib/apt/lists/* \
-    && pip3 install --default-timeout=300 --no-cache-dir --break-system-packages torch numpy
+    && pip3 install --default-timeout=300 --no-cache-dir --break-system-packages torch \"numpy<2\"
 
 # =========================================================================
 # System dependencies
@@ -45,9 +45,12 @@ RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
     && rm -rf /var/lib/apt/lists/*
 
 # =========================================================================
-# NeuroCUDA
+# NeuroCUDA (installed from source — includes hub + latest features)
 # =========================================================================
-RUN pip3 install --no-cache-dir --break-system-packages snntorch neurocuda
+RUN pip3 install --no-cache-dir --break-system-packages snntorch \
+    && git clone https://github.com/Krishnav1/neurocuda.git /tmp/neurocuda \
+    && pip3 install --no-cache-dir --break-system-packages -e /tmp/neurocuda \
+    && rm -rf /tmp/neurocuda/.git
 
 # =========================================================================
 # Event camera ROS2 packages (build from source if needed)

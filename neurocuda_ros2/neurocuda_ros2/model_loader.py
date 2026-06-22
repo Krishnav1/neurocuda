@@ -11,14 +11,15 @@ Handles:
 import numpy as np
 import torch
 
-# NeuroCUDA import (works when installed)
+# NeuroCUDA import
 try:
     import neurocuda as nc
     from models import IFNeuron, LIFNeuron, reset_spiking
+    from neurocuda import hub as nc_hub
     NEUROCUDA_AVAILABLE = True
 except ImportError:
     NEUROCUDA_AVAILABLE = False
-    print("[neurocuda_ros2] NeuroCUDA not installed. Some features unavailable.")
+    print("[neurocuda_ros2] NeuroCUDA not installed. pip install neurocuda")
 
 # ROS2 imports (work when ROS2 environment is sourced)
 try:
@@ -51,8 +52,8 @@ class ModelLoader:
                 "NeuroCUDA is required. Install: pip install neurocuda"
             )
 
-        # Load model and metadata
-        self.model, self.info = nc.hub.load(model_name, device=self.device)
+        # Load model and metadata from NeuroCUDA hub
+        self.model, self.info = nc_hub.load(model_name, device=self.device)
         self.model.eval()
 
         # Extract key info

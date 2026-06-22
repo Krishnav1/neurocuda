@@ -24,8 +24,7 @@
   <depend>geometry_msgs</depend>
   <depend>cv_bridge</depend>
 
-  <!-- Event camera support (optional) -->
-  <depend>event_camera_msgs</depend>
+  <!-- Event camera support (optional, build from source if needed) -->
 
   <!-- Python deps -->
   <depend>python3-neurocuda</depend>
