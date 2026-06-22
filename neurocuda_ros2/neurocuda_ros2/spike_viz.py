@@ -16,7 +16,8 @@ Output topics:
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float32, Float32MultiArray, String
+from std_msgs.msg import Float32
+from neurocuda_msgs.msg import SnnSpikeEvent
 
 
 class SpikeVizNode(Node):
@@ -41,9 +42,9 @@ class SpikeVizNode(Node):
         self.model_loader = ModelLoader(model_name, device=device)
 
         # Publishers
-        self.raster_pub = self.create_publisher(Float32MultiArray, "/snn/spike_raster", 10)
+        self.spike_pub = self.create_publisher(SnnSpikeEvent, "/snn/spikes", 10)
         self.sparsity_pub = self.create_publisher(Float32, "/snn/sparsity", 10)
-        self.layer_info_pub = self.create_publisher(String, "/snn/layer_info", 10, latch=True)
+        self.layer_info_pub = self.create_publisher(SnnSpikeEvent, "/snn/layer_info", 10, latch=True)
 
         # Timer
         self.timer = self.create_timer(1.0 / rate, self.publish_spike_data)
@@ -57,19 +58,21 @@ class SpikeVizNode(Node):
         )
 
     def _publish_layer_info(self):
-        """Publish static information about spiking layers."""
-        info_msg = String()
-        layers = []
+        """Publish static information about spiking layers as SnnSpikeEvent."""
+        from models import IFNeuron, LIFNeuron
         for name, module in self.model_loader.model.named_modules():
-            from models import IFNeuron, LIFNeuron
             if isinstance(module, (IFNeuron, LIFNeuron)):
                 neuron_type = "IF" if isinstance(module, IFNeuron) else "LIF"
-                layers.append(f"{name}:{neuron_type}")
-        info_msg.data = ",".join(layers)
-        self.layer_info_pub.publish(info_msg)
+                msg = SnnSpikeEvent()
+                msg.layer_name = name
+                msg.neuron_type = neuron_type
+                msg.spike_count = 0
+                msg.total_neurons = 0
+                msg.sparsity = 0.0
+                self.layer_info_pub.publish(msg)
 
     def publish_spike_data(self):
-        """Publish current spike statistics."""
+        """Publish current spike statistics as structured messages."""
         stats = self.model_loader._get_spike_stats()
 
         # Sparsity
@@ -77,17 +80,16 @@ class SpikeVizNode(Node):
         sparsity_msg.data = stats["sparsity"]
         self.sparsity_pub.publish(sparsity_msg)
 
-        # Per-layer spike counts (raster)
+        # Per-layer spike events — structured SnnSpikeEvent
         if stats["per_layer"]:
-            raster_data = []
             for name, data in sorted(stats["per_layer"].items()):
-                raster_data.append(float(data.get("spikes", 0)))
-                raster_data.append(float(data.get("total", 0)))
-                raster_data.append(float(data.get("sparsity", 0)))
-
-            raster_msg = Float32MultiArray()
-            raster_msg.data = raster_data
-            self.raster_pub.publish(raster_msg)
+                msg = SnnSpikeEvent()
+                msg.layer_name = name
+                msg.neuron_type = self.model_loader._get_neuron_type(name)
+                msg.spike_count = int(data.get("spikes", 0))
+                msg.total_neurons = int(data.get("total", 0))
+                msg.sparsity = float(data.get("sparsity", 0.0))
+                self.spike_pub.publish(msg)
 
 
 def main(args=None):

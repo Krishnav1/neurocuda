@@ -52,9 +52,10 @@ ros2 launch neurocuda_ros2 demo_nmnist.launch.py
 |-------|------|-----------|-------------|
 | `/camera/image` | `sensor_msgs/Image` | Sub | Regular camera input |
 | `/dvs/events` | `event_camera_msgs/EventArray` | Sub | Event camera input |
-| `/snn/detections` | `std_msgs/String` | Pub | Classification results |
-| `/snn/sparsity` | `std_msgs/Float32` | Pub | Spike sparsity % |
-| `/snn/status` | `std_msgs/String` | Pub | Model status and metrics |
+| `/snn/detections` | `neurocuda_msgs/SnnDetection` | Pub | Structured detection (class, confidence, top-k, sparsity) |
+| `/snn/spikes` | `neurocuda_msgs/SnnSpikeEvent` | Pub | Per-layer spike activity |
+| `/snn/sparsity` | `std_msgs/Float32` | Pub | Spike sparsity % (lightweight) |
+| `/snn/status` | `neurocuda_msgs/SnnStatus` | Pub | Model status and metrics |
 
 ### Control Node
 | Topic | Type | Direction | Description |
@@ -62,7 +63,7 @@ ros2 launch neurocuda_ros2 demo_nmnist.launch.py
 | `/robot/state` | `std_msgs/Float32MultiArray` | Sub | Robot state |
 | `/odom` | `nav_msgs/Odometry` | Sub | Odometry state |
 | `/cmd_vel` | `geometry_msgs/Twist` | Pub | Velocity commands |
-| `/snn/action` | `std_msgs/String` | Pub | Action label |
+| `/snn/action` | `neurocuda_msgs/SnnStatus` | Pub | Action + model status |
 | `/snn/q_values` | `std_msgs/Float32MultiArray` | Pub | Q-values |
 
 ## Test Without ROS2

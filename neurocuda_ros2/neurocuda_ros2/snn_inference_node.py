@@ -29,12 +29,14 @@ from rclpy.parameter import Parameter
 
 # Message types
 from sensor_msgs.msg import Image
-from std_msgs.msg import String, Float32
+from std_msgs.msg import Float32
+from neurocuda_msgs.msg import SnnDetection, SnnSpikeEvent, SnnStatus
 import numpy as np
 
 # NeuroCUDA
 from neurocuda_ros2.model_loader import (
-    ModelLoader, image_to_tensor, events_to_tensor, detection_to_msg
+    ModelLoader, image_to_tensor, events_to_tensor,
+    detection_to_msg, spike_stats_to_msg, status_to_msg
 )
 
 # Event camera messages (optional — works without them)
@@ -88,9 +90,10 @@ class SNNInferenceNode(Node):
         )
 
         # --- Publishers ---
-        self.detection_pub = self.create_publisher(String, "/snn/detections", 10)
+        self.detection_pub = self.create_publisher(SnnDetection, "/snn/detections", 10)
+        self.spike_pub = self.create_publisher(SnnSpikeEvent, "/snn/spikes", 10)
         self.sparsity_pub = self.create_publisher(Float32, "/snn/sparsity", 10)
-        self.status_pub = self.create_publisher(String, "/snn/status", 10)
+        self.status_pub = self.create_publisher(SnnStatus, "/snn/status", 10)
 
         # --- Subscribers ---
         if input_type in ("auto", "image"):
@@ -186,34 +189,28 @@ class SNNInferenceNode(Node):
     # Publish Results
     # ------------------------------------------------------------------
     def _publish_results(self, output, spike_stats):
-        """Publish detection results and spike statistics."""
-        # Detection
-        result = detection_to_msg(output, self.class_names)
-        det_msg = String()
-        det_msg.data = (
-            f"class={result['class_name']} "
-            f"confidence={result['confidence']:.3f} "
-            f"top3={result['top_k']}"
-        )
+        """Publish detection, spike events, sparsity, and status."""
+        import time
+
+        # 1. Detection — structured SnnDetection message
+        det_msg = detection_to_msg(output, self.class_names)
+        det_msg.sparsity = spike_stats["sparsity"]
+        det_msg.total_spikes = int(spike_stats["total_spikes"])
+        det_msg.total_neurons = int(spike_stats["total_activations"])
         self.detection_pub.publish(det_msg)
 
-        # Sparsity
+        # 2. Per-layer spike events — structured SnnSpikeEvent messages
+        for spike_msg in spike_stats_to_msg(spike_stats, self.model_loader):
+            self.spike_pub.publish(spike_msg)
+
+        # 3. Sparsity — lightweight Float32 for fast monitoring
         sparsity_msg = Float32()
         sparsity_msg.data = spike_stats["sparsity"]
         self.sparsity_pub.publish(sparsity_msg)
 
-        # Status (periodic)
+        # 4. Status — periodic structured status message
         if spike_stats["total_activations"] > 0:
-            status = (
-                f"SNN: {self.model_loader.model_name} | "
-                f"Accuracy: {self.model_loader.accuracy}% | "
-                f"Sparsity: {spike_stats['sparsity']:.1f}% | "
-                f"Spikes: {spike_stats['total_spikes']:,} / "
-                f"{spike_stats['total_activations']:,} | "
-                f"Detection: {result['class_name']} ({result['confidence']:.2f})"
-            )
-            status_msg = String()
-            status_msg.data = status
+            status_msg = status_to_msg(self.model_loader, spike_stats, 0.0)
             self.status_pub.publish(status_msg)
 
 

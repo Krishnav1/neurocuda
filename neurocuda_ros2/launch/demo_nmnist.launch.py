@@ -62,9 +62,9 @@ def generate_launch_description():
             "NeuroCUDA NMNIST Demo running!",
             "\n  Model: ", LaunchConfiguration("model"),
             "\n  Topics:",
-            "\n    /snn/detections — classification results",
-            "\n    /snn/sparsity — spike sparsity percentage",
-            "\n    /snn/spike_raster — per-layer spike counts",
-            "\n    /snn/status — model status and metrics",
+            "\n    /snn/detections — SnnDetection (class, confidence, top-k)",
+            "\n    /snn/spikes — SnnSpikeEvent (per-layer spike activity)",
+            "\n    /snn/sparsity — Float32 (overall sparsity %)",
+            "\n    /snn/status — SnnStatus (model metrics and device info)",
         ]),
     ])

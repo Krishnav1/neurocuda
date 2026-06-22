@@ -25,6 +25,7 @@ except ImportError:
 try:
     from sensor_msgs.msg import Image
     from cv_bridge import CvBridge
+    from neurocuda_msgs.msg import SnnDetection, SnnSpikeEvent, SnnStatus
     ROS2_AVAILABLE = True
 except ImportError:
     ROS2_AVAILABLE = False
@@ -171,6 +172,23 @@ class ModelLoader:
                 f"lif_neurons={self.lif_count}, "
                 f"params={self.num_params:,})")
 
+    def _get_neuron_type(self, layer_name):
+        """Return neuron type string for a named layer."""
+        for name, module in self.model.named_modules():
+            if name == layer_name:
+                if isinstance(module, LIFNeuron):
+                    return "LIF"
+                if isinstance(module, IFNeuron):
+                    return "IF"
+        return "unknown"
+
+    def _describe_architecture(self):
+        """Return a short architecture description string."""
+        parts = []
+        for name, module in self.model.named_children():
+            parts.append(type(module).__name__)
+        return " → ".join(parts) if parts else "unknown"
+
 
 # ===========================================================================
 # Tensor conversion utilities
@@ -256,7 +274,7 @@ def events_to_tensor(ros_events, T=16, H=34, W=34):
 
 
 def detection_to_msg(output_tensor, class_names=None, threshold=0.5):
-    """Convert SNN output tensor to ROS2 detection message.
+    """Convert SNN output tensor to SnnDetection message or dict.
 
     Args:
         output_tensor: (1, num_classes) logits
@@ -264,24 +282,93 @@ def detection_to_msg(output_tensor, class_names=None, threshold=0.5):
         threshold: confidence threshold
 
     Returns:
-        dict: detection result with class, confidence, top_k
+        SnnDetection (if ROS2 available) or dict
     """
     probs = torch.softmax(output_tensor[0], dim=0)
     top_prob, top_class = probs.max(dim=0)
 
-    top_indices = probs.argsort(descending=True)[:3].tolist()
+    k = min(3, len(probs))
+    top_indices = probs.argsort(descending=True)[:k]
+
+    if ROS2_AVAILABLE:
+        msg = SnnDetection()
+        msg.class_id = top_class.item()
+        msg.class_name = class_names[top_class.item()] if class_names else str(top_class.item())
+        msg.confidence = top_prob.item()
+        for idx in top_indices:
+            name = class_names[idx] if class_names else str(idx)
+            msg.top_k_labels.append(name)
+            msg.top_k_scores.append(probs[idx].item())
+        return msg
+
+    # Fallback for non-ROS2 environment
     top_k_simple = []
     for idx in top_indices:
-        if class_names:
-            name = class_names[idx]
-        else:
-            name = str(idx)
+        name = class_names[idx] if class_names else str(idx)
         top_k_simple.append((name, probs[idx].item()))
 
-    result = {
+    return {
         "class_id": top_class.item(),
         "class_name": class_names[top_class.item()] if class_names else str(top_class.item()),
         "confidence": top_prob.item(),
         "top_k": top_k_simple,
     }
-    return result
+
+
+def spike_stats_to_msg(spike_stats, model_loader=None):
+    """Convert spike statistics to a list of SnnSpikeEvent messages.
+
+    Args:
+        spike_stats: dict from ModelLoader._get_spike_stats()
+        model_loader: optional ModelLoader instance for accuracy
+
+    Returns:
+        list of SnnSpikeEvent messages
+    """
+    messages = []
+    if ROS2_AVAILABLE:
+        for layer_name, data in sorted(spike_stats.get("per_layer", {}).items()):
+            msg = SnnSpikeEvent()
+            msg.layer_name = layer_name
+            msg.neuron_type = model_loader._get_neuron_type(layer_name) if model_loader else "unknown"
+            msg.spike_count = int(data["spikes"])
+            msg.total_neurons = int(data["total"])
+            msg.sparsity = float(data["sparsity"])
+            messages.append(msg)
+    return messages
+
+
+def status_to_msg(model_loader, spike_stats, inference_time_ms=0.0):
+    """Build an SnnStatus message from model metadata and current spike stats.
+
+    Args:
+        model_loader: ModelLoader instance
+        spike_stats: dict from _get_spike_stats()
+        inference_time_ms: last inference time in milliseconds
+
+    Returns:
+        SnnStatus message (if ROS2 available) or dict
+    """
+    if ROS2_AVAILABLE:
+        msg = SnnStatus()
+        msg.model_name = model_loader.model_name
+        msg.task = model_loader.task
+        msg.architecture = model_loader._describe_architecture()
+        msg.accuracy = float(model_loader.accuracy) if isinstance(model_loader.accuracy, (int, float)) else 0.0
+        msg.total_params = model_loader.num_params
+        msg.neuron_count = model_loader.if_count + model_loader.lif_count
+        msg.device = str(model_loader.device)
+        msg.avg_sparsity = float(spike_stats.get("sparsity", 0.0))
+        msg.inference_time_ms = float(inference_time_ms)
+        return msg
+
+    return {
+        "model_name": model_loader.model_name,
+        "task": model_loader.task,
+        "accuracy": model_loader.accuracy,
+        "total_params": model_loader.num_params,
+        "neuron_count": model_loader.if_count + model_loader.lif_count,
+        "device": str(model_loader.device),
+        "avg_sparsity": spike_stats.get("sparsity", 0.0),
+        "inference_time_ms": inference_time_ms,
+    }

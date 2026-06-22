@@ -31,7 +31,8 @@ import numpy as np
 import torch
 
 from geometry_msgs.msg import Twist
-from std_msgs.msg import String, Float32MultiArray
+from std_msgs.msg import Float32MultiArray
+from neurocuda_msgs.msg import SnnStatus
 
 # State message types we support
 try:
@@ -84,8 +85,9 @@ class SNNControlNode(Node):
 
         # --- Publishers ---
         self.cmd_pub = self.create_publisher(Twist, "/cmd_vel", 10)
-        self.action_pub = self.create_publisher(String, "/snn/action", 10)
+        self.action_pub = self.create_publisher(SnnStatus, "/snn/action", 10)
         self.qvalues_pub = self.create_publisher(Float32MultiArray, "/snn/q_values", 10)
+        self.status_pub = self.create_publisher(SnnStatus, "/snn/status", 10)
 
         # --- Subscribers ---
         # Generic state array (works with any robot)
@@ -150,14 +152,25 @@ class SNNControlNode(Node):
             with torch.no_grad():
                 q_values = self.model_loader.model(state_tensor)
 
+            # Get spike stats
+            spike_stats = self.model_loader._get_spike_stats()
+
             # Select action (greedy — no exploration in deployment)
             q_vals_np = q_values[0].cpu().numpy()
             action = int(np.argmax(q_vals_np))
 
-            # --- Publish Action ---
-            action_msg = String()
+            # --- Publish Action as structured status ---
             action_name = self.action_names[action] if action < len(self.action_names) else str(action)
-            action_msg.data = f"action={action_name} q_values={q_vals_np.tolist()}"
+            action_msg = SnnStatus()
+            action_msg.model_name = self.model_loader.model_name
+            action_msg.task = self.model_loader.task
+            action_msg.architecture = action_name
+            action_msg.accuracy = float(self.model_loader.accuracy) if isinstance(self.model_loader.accuracy, (int, float)) else 0.0
+            action_msg.total_params = self.model_loader.num_params
+            action_msg.neuron_count = self.model_loader.if_count + self.model_loader.lif_count
+            action_msg.device = str(self.model_loader.device)
+            action_msg.avg_sparsity = float(spike_stats.get("sparsity", 0.0))
+            action_msg.inference_time_ms = 0.0
             self.action_pub.publish(action_msg)
 
             # --- Publish Q-values ---

@@ -7,7 +7,7 @@ name = "neurocuda"
 version = "0.2.0"
 description = "One-line API for PyTorch → Neuromorphic deployment (GPU, CPU, Loihi 2, FPGA)"
 readme = "README.md"
-license = "MIT"
+license = {text = "MIT"}
 license-files = ["LICENSE"]
 authors = [
     {name = "Krishna Varma"}
