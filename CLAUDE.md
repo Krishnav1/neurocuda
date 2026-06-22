@@ -27,6 +27,7 @@
 - Only commit when: code is written + tested + verified.
 - Commit message must describe what was TESTED, not just what was written.
 - If you can't test, the commit message must say "UNTESTED" at the start.
+- Author is always Krishna Varma. No Co-Authored-By.
 
 ### Rule 4: Think before you act
 - Before writing code, explain in simple words: what you're doing, why, and how you'll test it.

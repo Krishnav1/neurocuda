@@ -12,7 +12,7 @@ ENV LANG=en_US.UTF-8
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip curl \
     && rm -rf /var/lib/apt/lists/* \
-    && pip3 install --default-timeout=300 --no-cache-dir --break-system-packages torch \"numpy<2\"
+    && pip3 install --default-timeout=300 --no-cache-dir --break-system-packages torch 'numpy<2'
 
 # =========================================================================
 # System dependencies
@@ -60,10 +60,19 @@ RUN mkdir -p /workspace/src/event_camera && cd /workspace/src/event_camera && \
     echo "Event camera msgs will use std_msgs as fallback"
 
 # =========================================================================
-# Workspace
+# Workspace + ROS2 packages
 # =========================================================================
 RUN mkdir -p /workspace/src
 WORKDIR /workspace
+
+# Copy ROS2 packages (built at container build time)
+COPY neurocuda_msgs /workspace/src/neurocuda_msgs
+COPY neurocuda_ros2 /workspace/src/neurocuda_ros2
+
+# Build ROS2 workspace
+RUN . /opt/ros/jazzy/setup.sh \
+    && colcon build --packages-select neurocuda_msgs neurocuda_ros2 \
+    && echo "source /workspace/install/setup.bash" >> /root/.bashrc
 
 # Source ROS2 on shell start
 RUN echo "source /opt/ros/jazzy/setup.bash" >> /root/.bashrc

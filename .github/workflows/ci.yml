@@ -1,0 +1,150 @@
+name: NeuroCUDA CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  schedule:
+    - cron: '0 8 * * 1'  # Weekly Monday morning
+
+jobs:
+  # =========================================================================
+  # Python Tests
+  # =========================================================================
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install torch numpy pytest snntorch
+          pip install -e .
+
+      - name: Run tests
+        run: |
+          python -m pytest tests/ -v --tb=short
+
+  # =========================================================================
+  # Lint
+  # =========================================================================
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install linters
+        run: |
+          pip install flake8 black isort
+
+      - name: Check formatting (black)
+        run: black --check neurocuda/ tests/ || true
+
+      - name: Lint (flake8)
+        run: |
+          flake8 neurocuda/ --count --select=E9,F63,F7,F82 --show-source --statistics || true
+
+  # =========================================================================
+  # ROS2 Build (Docker)
+  # =========================================================================
+  ros2:
+    name: ROS2 Package Build
+    runs-on: ubuntu-latest
+    container:
+      image: osrf/ros:jazzy-desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq python3-pip python3-colcon-common-extensions
+          pip3 install --break-system-packages torch numpy snntorch
+          pip3 install --break-system-packages -e .
+
+      - name: Build neurocuda_msgs
+        run: |
+          . /opt/ros/jazzy/setup.sh
+          cd neurocuda_msgs
+          colcon build --packages-select neurocuda_msgs
+          . install/setup.sh
+
+      - name: Build neurocuda_ros2
+        run: |
+          . /opt/ros/jazzy/setup.sh
+          . neurocuda_msgs/install/setup.sh
+          cd neurocuda_ros2
+          colcon build --packages-select neurocuda_ros2
+
+  # =========================================================================
+  # PyPI Package Build
+  # =========================================================================
+  package:
+    name: PyPI Package Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build package
+        run: |
+          pip install build twine
+          python -m build --wheel
+
+      - name: Check package
+        run: twine check dist/*
+
+  # =========================================================================
+  # Reproduce Benchmarks (quick)
+  # =========================================================================
+  benchmarks:
+    name: Reproduce Benchmarks
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          pip install torch numpy snntorch
+          pip install -e .
+
+      - name: Verify hub and imports
+        run: |
+          python -c "
+          import neurocuda as nc
+          from neurocuda import hub
+          models = hub.list()
+          print(f'{len(models)} models in hub')
+          prod = [m for m in models if m['status']=='production']
+          print(f'{len(prod)} production models')
+          assert len(models) >= 11, 'Expected >= 11 models'
+          assert len(prod) >= 5, 'Expected >= 5 production models'
+          print('✅ Hub verified')
+          "

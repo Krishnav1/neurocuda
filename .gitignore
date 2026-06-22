@@ -37,3 +37,6 @@ Thumbs.db
 *.bin
 checkpoints/
 paper/
+ros2_humble.zip
+ros2_humble/
+krishnav1_profile/
