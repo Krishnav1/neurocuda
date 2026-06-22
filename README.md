@@ -8,6 +8,8 @@
 [![PyPI](https://img.shields.io/pypi/v/neurocuda?color=blue)](https://pypi.org/project/neurocuda/)
 [![Tests](https://img.shields.io/badge/tests-70%20passed-green)](tests/)
 [![HuggingFace](https://img.shields.io/badge/🤗-HuggingFace-yellow)](https://huggingface.co/Krishnav1234)
+[![ROS2](https://img.shields.io/badge/ROS2-Jazzy-22314E?logo=ros)](https://docs.ros.org/en/jazzy/)
+[![Docker](https://img.shields.io/badge/Docker-26GB-2496ED?logo=docker)](https://hub.docker.com/)
 
 ---
 
@@ -532,6 +534,70 @@ python examples/debug_cartpole_gap.py
 
 # Verify 5D temporal model handling
 python examples/test_converter_5d.py
+```
+
+---
+
+## ROS2 — Spiking Neural Networks for Robots
+
+Add SNN perception and control to any ROS2 robot. One command. All batteries included.
+
+```bash
+# Start the Docker container (ROS2 Jazzy + PyTorch CUDA + NeuroCUDA)
+docker compose up -d
+docker compose exec neurocuda bash
+
+# Build and run
+cd /workspace
+colcon build --packages-select neurocuda_ros2
+source install/setup.bash
+
+# Run SNN inference node
+ros2 run neurocuda_ros2 snn_infer --ros-args -p model:=cnn-nmnist-snn
+
+# Check topics
+ros2 topic list
+# /snn/detections  /snn/sparsity  /snn/status
+```
+
+### What's Inside the Docker Image
+
+| Component | Version | Purpose |
+|-----------|---------|---------|
+| Ubuntu | 24.04 | Base OS |
+| CUDA | 13.0 | GPU acceleration |
+| PyTorch | 2.12.1 | AI engine |
+| ROS2 | Jazzy | Robot communication |
+| NeuroCUDA | Latest (source) | SNN compiler + hub |
+| rclpy | Latest | ROS2 Python client |
+| snntorch | Latest | Surrogate gradients |
+
+### ROS2 Package (`neurocuda_ros2`)
+
+| Node | What It Does | Command |
+|------|-------------|---------|
+| `snn_infer` | Camera/events → SNN → detections | `ros2 run neurocuda_ros2 snn_infer` |
+| `snn_control` | Robot state → SNN DQN → actions | `ros2 run neurocuda_ros2 snn_control` |
+| `spike_viz` | Live spike activity monitor | `ros2 run neurocuda_ros2 spike_viz` |
+
+### ROS2 Topics
+
+| Topic | Type | Description |
+|-------|------|-------------|
+| `/snn/detections` | String | Classification results |
+| `/snn/sparsity` | Float32 | Spike sparsity percentage |
+| `/snn/status` | String | Model info and metrics |
+| `/snn/spike_raster` | Float32MultiArray | Per-layer spike counts |
+
+### Build From Source (No Docker)
+
+```bash
+# Requires: Ubuntu 24.04, ROS2 Jazzy, CUDA
+git clone https://github.com/Krishnav1/neurocuda
+cd neurocuda/neurocuda_ros2
+colcon build --packages-select neurocuda_ros2
+source install/setup.bash
+ros2 launch neurocuda_ros2 demo_nmnist.launch.py
 ```
 
 ---
