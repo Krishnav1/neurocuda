@@ -1,0 +1,28 @@
+# NeuroCUDA + Gazebo + TurtleBot4
+# Headless simulation for SNN inference testing
+#
+# Build: docker build -f Dockerfile.gazebo -t neurocuda:gazebo .
+# Run:   docker run --rm -it neurocuda:gazebo
+# Test:  ros2 launch neurocuda_ros2 demo_gazebo_headless.launch.py
+
+FROM neurocuda:ros2
+
+# Add Gazebo Harmonic repository
+RUN apt-get update -qq && \
+    apt-get install -y -qq curl lsb-release gnupg && \
+    curl -sSL https://packages.osrfoundation.org/gazebo.gpg \
+      -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] https://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
+      > /etc/apt/sources.list.d/gazebo-stable.list && \
+    apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+      gz-harmonic \
+      ros-jazzy-turtlebot4-gz-bringup && \
+    apt-get install -y -qq libgl1-mesa-glx libgl1-mesa-dri libegl1 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Headless rendering environment
+ENV QT_QPA_PLATFORM=offscreen
+
+# Default command: show Gazebo version
+CMD ["gz", "sim", "--version"]
