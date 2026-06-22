@@ -253,9 +253,10 @@ def image_to_tensor(ros_image, target_size=None):
     else:
         np_arr = np.frombuffer(data, dtype=dtype).reshape(h, w, channels) if channels > 1 else np.frombuffer(data, dtype=dtype).reshape(h, w)
 
-    # Ensure 3 channels
+    # Ensure 3 channels (but keep mono if model expects it)
     if len(np_arr.shape) == 2:
-        np_arr = np.stack([np_arr] * 3, axis=-1)
+        # For MNIST-like models, keep as 1 channel
+        np_arr = np_arr[:, :, np.newaxis]  # (H,W) → (H,W,1)
     elif np_arr.shape[-1] == 4:
         np_arr = np_arr[:, :, :3]  # drop alpha
 
