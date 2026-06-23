@@ -1,32 +1,40 @@
-# NeuroCUDA ROS2 Development Environment
-# docker compose up -d && docker compose exec neurocuda bash
+# NeuroCUDA ROS2 — One-command SNN robotics pipeline
+#
+# Start:   docker compose up -d
+# Enter:   docker compose exec ros2 bash
+# Stop:    docker compose down
+#
+# Foxglove dashboard: ws://localhost:8765
 
 services:
-  neurocuda:
-    build:
-      context: .
-      dockerfile: Dockerfile.ros2
-    image: neurocuda:ros2
+  ros2:
+    build: .
+    image: neurocuda-ros2:latest
     container_name: neurocuda_ros2
-    network_mode: host
-    ipc: host
-    privileged: true
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./neurocuda_msgs:/neurocuda_ws/src/neurocuda_msgs
+      - ./neurocuda_ros2:/neurocuda_ws/src/neurocuda_ros2
+      - bags:/neurocuda_ws/bags
+      - reports:/neurocuda_ws/reports
+    environment:
+      - QT_QPA_PLATFORM=offscreen
+      - EGL_PLATFORM=surfaceless
+      - LIBGL_ALWAYS_SOFTWARE=1
+      - ROS_DOMAIN_ID=0
     stdin_open: true
     tty: true
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu, utility, compute]
-    environment:
-      - DISPLAY=${DISPLAY}
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=all
-      - QT_X11_NO_MITSHM=1
-    volumes:
-      - ./neurocuda_ros2:/workspace/src/neurocuda_ros2:rw
-      - .:/neurocuda:rw
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-    working_dir: /workspace
+    command: >
+      bash -c "
+        source /opt/ros/jazzy/setup.bash &&
+        cd /neurocuda_ws &&
+        colcon build --packages-select neurocuda_msgs neurocuda_ros2 &&
+        source install/setup.bash &&
+        echo '✅ NeuroCUDA ROS2 ready! | Foxglove: ws://localhost:8765' &&
+        tail -f /dev/null
+      "
+
+volumes:
+  bags:
+  reports:

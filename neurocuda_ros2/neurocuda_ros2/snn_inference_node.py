@@ -54,6 +54,17 @@ class SNNInferenceNode(Node):
 
     def __init__(self, node_name="snn_inference"):
         super().__init__(node_name=node_name)
+
+        # Declare parameters early (before on_configure) to avoid warnings
+        self.declare_parameter("model", "neurocuda/cnn-nmnist-snn")
+        self.declare_parameter("input_type", "auto")
+        self.declare_parameter("T", 16)
+        self.declare_parameter("device", "auto")
+        self.declare_parameter("hardware_target", "")
+        self.declare_parameter("publish_debug_image", True)
+        self.declare_parameter("event_buffer_size", 10000)
+        self.declare_parameter("camera_topic", "/camera/image")
+
         self.model_loader = None
         self.class_names = None
         self.T = 16
@@ -72,16 +83,7 @@ class SNNInferenceNode(Node):
         self.get_logger().info("⚙️  Configuring — loading SNN model...")
 
         try:
-            # --- Declare parameters ---
-            self.declare_parameter("model", "neurocuda/cnn-nmnist-snn")
-            self.declare_parameter("input_type", "auto")
-            self.declare_parameter("T", 16)
-            self.declare_parameter("device", "auto")
-            self.declare_parameter("hardware_target", "")
-            self.declare_parameter("publish_debug_image", True)
-            self.declare_parameter("event_buffer_size", 10000)
-            self.declare_parameter("camera_topic", "/camera/image")
-
+            # --- Read parameters (declared in __init__) ---
             self._model_name = self.get_parameter("model").value
             self._input_type = self.get_parameter("input_type").value
             self.T = self.get_parameter("T").value

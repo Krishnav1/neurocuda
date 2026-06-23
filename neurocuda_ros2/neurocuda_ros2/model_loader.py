@@ -32,11 +32,16 @@ try:
 except ImportError:
     print("[neurocuda_ros2] ROS2 core not available. Running in simulation mode.")
 
-try:
-    from cv_bridge import CvBridge
-    BRIDGE_AVAILABLE = True
-except ImportError:
-    print("[neurocuda_ros2] cv_bridge not available. Using numpy-only image conversion.")
+# cv_bridge requires NumPy 1.x; we use pure-numpy fallback for NumPy 2.x
+_NUMPY_V1 = np.__version__.startswith("1.")
+if _NUMPY_V1:
+    try:
+        from cv_bridge import CvBridge
+        BRIDGE_AVAILABLE = True
+    except ImportError:
+        pass
+if not BRIDGE_AVAILABLE:
+    print("[neurocuda_ros2] Using numpy-only image conversion (no cv_bridge needed)")
 
 
 class ModelLoader:
