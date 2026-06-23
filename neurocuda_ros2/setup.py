@@ -29,6 +29,7 @@ setup(
             "spike_viz = neurocuda_ros2.spike_viz:main",
             "lifecycle_mgr = neurocuda_ros2.lifecycle_manager:main",
             "camera_sim = neurocuda_ros2.camera_sim:main",
+            "benchmark = neurocuda_ros2.benchmark_node:main",
         ],
     },
 )
