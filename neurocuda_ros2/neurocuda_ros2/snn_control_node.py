@@ -84,10 +84,10 @@ class SNNControlNode(Node):
                 f"Actions: {self._num_actions} | Mode: {self._action_mode}"
             )
 
-            # Lifecycle publishers
-            self.cmd_pub = self.create_lifecycle_publisher(Twist, "/cmd_vel", 10)
-            self.action_pub = self.create_lifecycle_publisher(SnnStatus, "/snn/action", 10)
-            self.qvalues_pub = self.create_lifecycle_publisher(Float32MultiArray, "/snn/q_values", 10)
+            # Publishers (regular — lifecycle managed via node state)
+            self.cmd_pub = self.create_publisher(Twist, "/cmd_vel", 10)
+            self.action_pub = self.create_publisher(SnnStatus, "/snn/action", 10)
+            self.qvalues_pub = self.create_publisher(Float32MultiArray, "/snn/q_values", 10)
 
             # Subscriptions
             self.state_sub = self.create_subscription(

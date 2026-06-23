@@ -64,12 +64,12 @@ class SpikeVizNode(Node):
                 f"spiking layers"
             )
 
-            # Lifecycle publishers
-            self.spike_pub = self.create_lifecycle_publisher(
+            # Publishers (regular — lifecycle managed via node state)
+            self.spike_pub = self.create_publisher(
                 SnnSpikeEvent, "/snn/spikes", 10)
-            self.sparsity_pub = self.create_lifecycle_publisher(
+            self.sparsity_pub = self.create_publisher(
                 Float32, "/snn/sparsity", 10)
-            self.layer_info_pub = self.create_lifecycle_publisher(
+            self.layer_info_pub = self.create_publisher(
                 SnnSpikeEvent, "/snn/layer_info", 10)
 
             self.get_logger().info("  ✅ Configured — ready to activate")

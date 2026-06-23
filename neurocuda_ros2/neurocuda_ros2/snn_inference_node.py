@@ -112,14 +112,14 @@ class SNNInferenceNode(Node):
             # --- Class names ---
             self.class_names = self._get_class_names(self._model_name)
 
-            # --- Lifecycle publishers (only active when node is Active) ---
-            self.detection_pub = self.create_lifecycle_publisher(
+            # --- Publishers (regular — lifecycle managed via node state) ---
+            self.detection_pub = self.create_publisher(
                 SnnDetection, "/snn/detections", 10)
-            self.spike_pub = self.create_lifecycle_publisher(
+            self.spike_pub = self.create_publisher(
                 SnnSpikeEvent, "/snn/spikes", 10)
-            self.sparsity_pub = self.create_lifecycle_publisher(
+            self.sparsity_pub = self.create_publisher(
                 Float32, "/snn/sparsity", 10)
-            self.status_pub = self.create_lifecycle_publisher(
+            self.status_pub = self.create_publisher(
                 SnnStatus, "/snn/status", 10)
 
             # --- Subscriptions (only active when node is Active) ---
@@ -243,12 +243,16 @@ class SNNInferenceNode(Node):
         if self.model_loader is None:
             return
         try:
+            # Reset IF neuron state for each image (single-image classification)
+            self.model_loader.reset_state()
             tensor = image_to_tensor(msg)
             tensor = tensor.to(self.model_loader.device)
             output, spike_stats = self.model_loader.infer_4d(tensor)
             self._publish_results(output, spike_stats)
         except Exception as e:
             self.get_logger().error(f"Inference error: {e}", throttle_duration_sec=5.0)
+            import traceback
+            self.get_logger().error(traceback.format_exc(), throttle_duration_sec=5.0)
 
     # ------------------------------------------------------------------
     # Event Camera Callback
