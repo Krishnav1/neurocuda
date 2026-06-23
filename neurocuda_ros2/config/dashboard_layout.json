@@ -1,0 +1,84 @@
+{
+  "configVersion": 1,
+  "title": "NeuroCUDA SNN Dashboard",
+  "description": "Real-time spiking neural network monitoring — camera, detections, spikes, latency, energy",
+  "panels": {
+    "camera": {
+      "type": "ImageViewer",
+      "title": "Robot Camera View",
+      "config": {
+        "topic": "/camera/image",
+        "smooth": true
+      }
+    },
+    "detections": {
+      "type": "TableViewer",
+      "title": "SNN Detections",
+      "config": {
+        "topic": "/snn/detections",
+        "columns": ["class_name", "confidence", "sparsity", "total_spikes", "total_neurons"]
+      }
+    },
+    "spikes": {
+      "type": "Sparkline",
+      "title": "Per-Layer Spike Activity",
+      "config": {
+        "topic": "/snn/spikes",
+        "xField": "layer_name",
+        "yField": "spike_count"
+      }
+    },
+    "sparsity": {
+      "type": "Gauge",
+      "title": "Activation Sparsity (%)",
+      "config": {
+        "topic": "/snn/sparsity",
+        "min": 0,
+        "max": 100
+      }
+    },
+    "status": {
+      "type": "TableViewer",
+      "title": "Model Status",
+      "config": {
+        "topic": "/snn/status",
+        "columns": ["model_name", "accuracy", "device", "avg_sparsity", "inference_time_ms"]
+      }
+    },
+    "benchmark": {
+      "type": "Plot",
+      "title": "Latency Timeline (ms)",
+      "config": {
+        "topic": "/snn/benchmark",
+        "xField": "timestamp",
+        "yField": "inference_time_ms"
+      }
+    }
+  },
+  "layout": {
+    "direction": "row",
+    "first": {
+      "direction": "column",
+      "first": "camera",
+      "second": "sparsity",
+      "splitPercentage": 60
+    },
+    "second": {
+      "direction": "column",
+      "first": "detections",
+      "second": {
+        "direction": "row",
+        "first": "benchmark",
+        "second": "status"
+      }
+    },
+    "splitPercentage": 50
+  },
+  "instructions": [
+    "1. Start: ros2 launch neurocuda_ros2 dashboard.launch.py",
+    "2. Open Foxglove Studio (https://foxglove.dev/download)",
+    "3. Open Connection → WebSocket → ws://localhost:8765",
+    "4. Import this layout: Layout → Import from file",
+    "5. You should see camera feed, detections, spike activity, and benchmarks"
+  ]
+}
