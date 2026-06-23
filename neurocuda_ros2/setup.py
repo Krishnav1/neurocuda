@@ -30,6 +30,7 @@ setup(
             "lifecycle_mgr = neurocuda_ros2.lifecycle_manager:main",
             "camera_sim = neurocuda_ros2.camera_sim:main",
             "benchmark = neurocuda_ros2.benchmark_node:main",
+            "multibackend = neurocuda_ros2.multibackend_benchmark:main",
         ],
     },
 )
