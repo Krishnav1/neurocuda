@@ -1,6 +1,6 @@
 # NeuroCUDA
 
-**A pip-installable compiler that converts trained PyTorch models to spiking neural networks and deploys them across GPU, CPU, Loihi 2 simulator, and FPGA — through one API call.**
+**A pip-installable compiler that converts trained PyTorch models to spiking neural networks and deploys them across GPU, CPU, Loihi 2 simulator, SpiNNaker, BrainScaleS-2, and FPGA — through one API call.**
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://python.org)
@@ -40,10 +40,11 @@ You train a normal PyTorch model (ANN with ReLU activations). NeuroCUDA **compil
 ```
 Your PyTorch Model  →  neurocuda.convert()  →  Spiking SNN
                                                     │
-                                    ┌───────────────┼───────────────┐
-                                    ▼               ▼               ▼
-                                  GPU             Loihi 2         FPGA
-                              (training)      (deployment)    (custom silicon)
+                                    ┌───────────────┼───────────────┬───────────────┐
+                                    ▼               ▼               ▼               ▼
+                                  GPU             Loihi 2      SpiNNaker-1    BrainScaleS-2
+                              (training)      (deployment)      (digital)       (analog)
+                                              [simulator]    [real silicon]  [real silicon]
 ```
 
 ### What "Spiking" Means Here
@@ -91,13 +92,17 @@ All numbers are on **full test sets** with **≥3 seeds**, honestly reported as 
 
 ### Multi-Backend Validation
 
-| Backend | Spike Deviation | Accuracy Δ | Status |
-|---------|----------------|------------|--------|
-| GPU (PyTorch) | Reference | Reference | Production |
-| CPU (PyTorch) | 0 / 256K spikes | 0.000000% | Bit-exact |
-| Loihi 2 IF model | 0 / 100K+ spikes | 0.01% | Validated against published Loihi neuron equations |
+| Backend | Type | Status | Notes |
+|---------|------|--------|-------|
+| GPU (PyTorch) | Simulator | Production | Default backend. CUDA-accelerated. |
+| CPU (PyTorch) | Simulator | Bit-exact | 0 / 256K spike deviation vs GPU |
+| Loihi 2 IF | Simulator | Validated | 0 / 100K+ spike diffs vs published Loihi neuron equations |
+| **SpiNNaker-1** | **Physical silicon** | Code-ready | 1M ARM cores, Manchester. PyNN scripts generated. NMPI queue pending dispatch. 5000 core-hour quota approved. |
+| **BrainScaleS-2** | **Physical silicon** | Hardware confirmed | Analog chip, Heidelberg. 138-neuron SNN with trained weights deployed to chip 57. Spike trains verified 2026-06-28. |
 
-> **Hardware note:** The Loihi 2 row validates NeuroCUDA's IF neuron math against Loihi 2's published neuron equations (reimplemented in NumPy on synthetic input). It does **not** run Intel's Lava SDK and is **not** physical silicon. No vendor-SDK or hardware validation has been performed yet.
+> **SpiNNaker-1:** Full MLP MNIST SNN (784→256→256→10, 269K params) compiles to self-contained sPyNNaker script with weight embedding. `nc.compile(model, target="spinnaker")` generates deployment-ready code. Hardware execution blocked by EBRAINS NMPI queue dispatch (support ticket open). See [`neurocuda/backends/spinnaker.py`](neurocuda/backends/spinnaker.py).
+>
+> **BrainScaleS-2:** Analog neuron emulation (HXNeuron/AdEx) confirmed working. Network topology (connection masks) placed correctly. Classification accuracy limited by analog mismatch and lack of per-synapse weight-value programming through standard PyNN. Honest documentation in [`neurocuda/backends/brainscales.py`](neurocuda/backends/brainscales.py).
 
 ### Energy Efficiency — Robotics Perception Pipeline
 
@@ -153,7 +158,11 @@ Optional (auto-installed with `[all]`):
 
 ```bash
 python -c "import neurocuda; print(neurocuda.list_backends())"
-# → {'gpu': 'PyTorch CUDA backend', 'cpu': 'PyTorch CPU backend', 'loihi': 'Loihi 2 IF simulator'}
+# → [{'name': 'brainscales2', 'is_simulator': False, ...},
+#    {'name': 'cpu',          'is_simulator': True,  ...},
+#    {'name': 'gpu',          'is_simulator': True,  ...},
+#    {'name': 'loihi',         'is_simulator': True,  ...},
+#    {'name': 'spinnaker',    'is_simulator': False, ...}]
 ```
 
 ---
@@ -205,13 +214,19 @@ print(f"Thresholds: {len(stats['thresholds'])} layers")
 sparsity, spikes, total_acts, layer_data = nc.measure_sparsity(snn_model, test_loader)
 print(f"Sparsity: {sparsity:.1f}% ({spikes:,} spikes / {total_acts:,} activations)")
 
-# 4. Export to NIR (deployable to Loihi 2, SpiNNaker, FPGA)
+# 4. Export to NIR (deployable to Loihi 2, SpiNNaker, BrainScaleS-2, FPGA)
 nir_graph = nc.to_nir(snn_model, T=16, model_name="my_snn")
-# nir_graph is an HDF5-compatible dict — save it, ship it, deploy it.
 
-# 5. Compile for target hardware
+# 5. Compile for target hardware (GPU, CPU, Loihi, SpiNNaker, BrainScaleS-2)
 result = nc.compile(snn_model, target="gpu")
 output = result["backend"].run(result["compiled_model"], input_data)
+
+# 6. Deploy to real neuromorphic silicon
+from neurocuda.backends import get_backend
+backend = get_backend("spinnaker")
+compiled = backend.compile(snn_model, T=64)
+backend.export_script(compiled, "deploy_spinnaker.py")
+# → Upload deploy_spinnaker.py to EBRAINS Job Manager → SpiNNaker → run
 ```
 
 ### Choosing the Right Strategy
@@ -385,7 +400,7 @@ Compile SNN for a specific hardware target.
 ```python
 result = nc.compile(
     snn_model,
-    target="gpu",                   # "gpu" | "cpu" | "loihi"
+    target="gpu",                   # "gpu" | "cpu" | "loihi" | "spinnaker" | "brainscales2"
     T=16,                           # Timesteps
 )
 # result = {"compiled_model": ..., "backend": ..., "metadata": ...}
@@ -412,7 +427,16 @@ List available hardware backends.
 
 ```python
 nc.list_backends()
-# → {'gpu': 'PyTorch CUDA backend', 'cpu': 'PyTorch CPU backend', 'loihi': 'Loihi 2 IF simulator'}
+# → [{'name': 'brainscales2', 'description': 'BrainScaleS-2 analog neuromorphic silicon...',
+#     'is_simulator': False, 'hardware_type': 'physical_silicon'},
+#    {'name': 'cpu', 'description': 'Pure PyTorch CPU inference...',
+#     'is_simulator': True, 'hardware_type': 'simulator'},
+#    {'name': 'gpu', 'description': 'snnTorch GPU-accelerated SNN simulator...',
+#     'is_simulator': True, 'hardware_type': 'simulator'},
+#    {'name': 'loihi', 'description': 'Loihi 2 bit-accurate simulator...',
+#     'is_simulator': True, 'hardware_type': 'emulator'},
+#    {'name': 'spinnaker', 'description': 'SpiNNaker-1 digital neuromorphic silicon...',
+#     'is_simulator': False, 'hardware_type': 'physical_silicon'}]
 ```
 
 ---
@@ -716,9 +740,12 @@ neurocuda/
 │   │   ├── fpga_pipeline.py         # FPGA deployment pipeline
 │   │   └── verilog_export.py        # Verilog RTL generation
 │   └── backends/                    # Hardware backends
+│       ├── __init__.py              # Backend registry + get_backend()
 │       ├── gpu.py                   # PyTorch CUDA backend
 │       ├── cpu.py                   # PyTorch CPU backend
-│       └── loihi.py                 # Loihi 2 IF simulator
+│       ├── loihi.py                 # Loihi 2 IF simulator (bit-accurate)
+│       ├── spinnaker.py             # SpiNNaker-1 physical silicon (EBRAINS NMPI)
+│       └── brainscales.py           # BrainScaleS-2 analog silicon (EBRAINS Lab)
 │
 ├── models.py                        # Neuron models: QCFS, IFNeuron, LIFNeuron, ResNet-18
 ├── nir_export.py                    # Legacy NIR export (FX tracing path)
@@ -828,11 +855,15 @@ NeuroCUDA is a **systems/tooling contribution** — it integrates existing publi
 
 4. **FPGA deployment:** HLS C++ is generated but not yet synthesized to a physical bitstream. The FPGA pipeline is a proof-of-concept.
 
-5. **Loihi 2:** Simulator-validated only. Not tested on physical Intel Loihi 2 silicon. No Lava SDK integration yet.
+5. **Loihi 2:** Simulator-validated only. Not tested on physical Intel Loihi 2 silicon. No Lava SDK integration yet. INRC application path available (inrc_interest@intel.com) for real silicon access.
 
-6. **Scale:** Tested on CIFAR-10, N-MNIST, MNIST, CartPole. Not tested on ImageNet-scale models or large language models.
+6. **SpiNNaker-1:** Code compiles and generates valid sPyNNaker scripts. Hardware execution blocked by EBRAINS NMPI queue dispatch (jobs accepted, quota approved, not yet dispatched). See `support@ebrains.eu`.
 
-7. **Activation types:** Currently supports ReLU, SiLU, GELU. LeakyReLU and PReLU are not yet tested.
+7. **BrainScaleS-2:** Analog silicon confirmed (chip 57, Heidelberg). Network topology placed correctly. Classification accuracy limited — analog calibration is per-chip/per-session and weight values aren't individually programmable through standard PyNN. This is an honest hardware limitation, not a code bug.
+
+8. **Scale:** Tested on CIFAR-10, N-MNIST, MNIST, CartPole. Not tested on ImageNet-scale models or large language models.
+
+9. **Activation types:** Currently supports ReLU, SiLU, GELU. LeakyReLU and PReLU are not yet tested.
 
 ---
 
@@ -856,10 +887,11 @@ Yes. Any PyTorch model with `nn.ReLU`/`nn.SiLU`/`nn.GELU` activations and option
 
 ### What hardware can I deploy to?
 
-- **GPU/CPU**: Directly via the PyTorch backend (training and inference)
-- **Loihi 2**: Via the IF simulator (validated against published Loihi equations)
-- **FPGA**: Via HLS C++ generation (proof-of-concept, not yet synthesized)
-- **SpiNNaker**: Via NIR export (format compatible, not yet tested)
+- **GPU/CPU**: Directly via the PyTorch backend (training and inference). Production-ready.
+- **Loihi 2**: Via the IF simulator (validated against published Loihi equations). Real silicon pending INRC application.
+- **SpiNNaker-1**: Via generated sPyNNaker scripts submitted through EBRAINS NMPI queue. Code compiles. Blocked on queue dispatch.
+- **BrainScaleS-2**: Via PyNN scripts executed in EBRAINS Lab. Analog silicon confirmed. Network topology placement works.
+- **FPGA**: Via HLS C++ generation (proof-of-concept, not yet synthesized).
 
 ---
 

@@ -71,6 +71,9 @@ class NeuroBenchReporter:
     GPU_PJ_PER_MAC = 50.0      # GPU: ~50 pJ per multiply-accumulate
     NEURO_PJ_PER_SOP = 0.08    # Loihi: ~0.08 pJ per synaptic operation
     CPU_PJ_PER_MAC = 5000.0    # CPU: ~5000 pJ per MAC
+    SPINNAKER_PJ_PER_SOP = 100.0      # SpiNNaker-1: ~100 pJ per SynOp (system-level)
+    BSS2_PJ_PER_SPIKE = 1000.0        # BrainScaleS-2: ~1 nJ per spike event (analog + ADC)
+    BSS2_PJ_PER_NEURON = 500.0        # BrainScaleS-2: ~0.5 nJ per neuron update
 
     def __init__(self, device="cuda"):
         self.device = device
@@ -136,7 +139,9 @@ class NeuroBenchReporter:
         if "loihi" in backend_name.lower():
             hw_type = "emulator"  # Loihi2SimCfg = emulation
         elif "spinnaker" in backend_name.lower():
-            hw_type = "physical_silicon"
+            hw_type = "physical_silicon"   # SpiNNaker-1 Manchester: real digital silicon
+        elif "brainscales" in backend_name.lower() or "bss" in backend_name.lower():
+            hw_type = "physical_silicon"   # BrainScaleS-2 Heidelberg: real analog silicon
 
         # Latency benchmark
         model.eval()
@@ -173,6 +178,12 @@ class NeuroBenchReporter:
             power_mw = energy_uj / (latency_ms * 1000) if latency_ms > 0 else 0
         elif "loihi" in backend_name.lower():
             energy_uj = (syn_ops_per_inf * self.NEURO_PJ_PER_SOP) / 1e6
+            power_mw = energy_uj / (latency_ms * 1000) if latency_ms > 0 else 0
+        elif "spinnaker" in backend_name.lower():
+            energy_uj = (syn_ops_per_inf * self.SPINNAKER_PJ_PER_SOP) / 1e6
+            power_mw = energy_uj / (latency_ms * 1000) if latency_ms > 0 else 0
+        elif "brainscales" in backend_name.lower() or "bss" in backend_name.lower():
+            energy_uj = (syn_ops_per_inf * self.BSS2_PJ_PER_SPIKE + total_synapses * spike_rate * T * self.BSS2_PJ_PER_NEURON) / 1e6
             power_mw = energy_uj / (latency_ms * 1000) if latency_ms > 0 else 0
         else:  # CPU
             energy_uj = (total_synapses * T * self.CPU_PJ_PER_MAC) / 1e6
