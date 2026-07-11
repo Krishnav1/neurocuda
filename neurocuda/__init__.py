@@ -19,12 +19,13 @@ Usage:
     # Check all available targets
     print(nc.list_backends())
 
-Targets: gpu, cpu, loihi, loihi3
+Targets: gpu, cpu, loihi, loihi2_lava, loihi2_hw, spinnaker, brainscales2
 """
 
 from .converter import convert, Calibrator, measure_sparsity
 from .finetune import finetune, FineTuner
 from .compiler import compile, list_backends, benchmark
+from .verify import verify, verify_to_json
 from .utils import energy_estimate, fold_batchnorm, validate_snn
 from .export.nir_exporter import to_nir, to_sc_neurocore, to_hls_cpp
 from . import backends
@@ -33,6 +34,7 @@ from . import hub
 __version__ = "0.2.0"
 __all__ = [
     "convert", "finetune", "compile", "list_backends", "benchmark",
+    "verify", "verify_to_json",
     "to_nir", "to_sc_neurocore", "to_hls_cpp",
     "Calibrator", "FineTuner", "measure_sparsity",
     "energy_estimate", "fold_batchnorm", "validate_snn",

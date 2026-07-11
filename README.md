@@ -400,12 +400,35 @@ Compile SNN for a specific hardware target.
 ```python
 result = nc.compile(
     snn_model,
-    target="gpu",                   # "gpu" | "cpu" | "loihi" | "spinnaker" | "brainscales2"
+    target="gpu",                   # "gpu" | "cpu" | "loihi" | "loihi2_lava" | "loihi2_hw" | "spinnaker" | "brainscales2"
     T=16,                           # Timesteps
 )
 # result = {"compiled_model": ..., "backend": ..., "metadata": ...}
 output = result["backend"].run(result["compiled_model"], input_data)
 ```
+
+### `neurocuda.verify(snn_model, test_loader, ...)`
+
+Cross-backend accuracy verification (GATE L2 pre-silicon milestone).
+
+```python
+report = nc.verify(
+    snn_model,
+    test_loader,
+    backends=["gpu", "cpu", "loihi", "loihi2_lava"],
+    T=32,
+    gate_l2=True,  # acc >= 95.4%, gap vs GPU <= 2%
+)
+nc.verify_to_json(report, "results/lava_gate_l2.json")
+```
+
+Run the full GATE L2 benchmark:
+
+```bash
+python reproduce.py --lava-gate
+```
+
+See [`docs/LAVA_SETUP.md`](docs/LAVA_SETUP.md) for Lava SDK setup (Python 3.10 + INRC Linux). When Lava is unavailable, `loihi2_lava` exports NIR and runs via NeuroCUDA's Loihi quant sim (`execution_mode: neurocuda_loihi_sim`).
 
 ### `neurocuda.finetune(snn_model, train_loader, epochs=3, ...)`
 

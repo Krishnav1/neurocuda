@@ -28,6 +28,7 @@ Requirements:
 """
 
 import sys, os, time, argparse, subprocess
+from pathlib import Path
 
 # ===========================================================================
 # Configuration
@@ -762,6 +763,147 @@ def print_final_summary(all_results):
 
 
 # ===========================================================================
+# GATE L2 — Lava / Loihi2 cross-backend verification (MLP MNIST)
+# ===========================================================================
+
+def run_lava_gate(T=32, batch_size=256, max_samples=None, out_path="results/lava_gate_l2.json"):
+    """
+    GATE L2: MLP MNIST accuracy across gpu/cpu/loihi/loihi2_lava.
+
+    Targets: accuracy >= 95.4%, gap vs GPU <= 2% on full MNIST test set.
+    """
+    import json
+    import torch
+    from torch.utils.data import DataLoader
+    from torchvision import datasets, transforms
+
+    import neurocuda as nc
+    from neurocuda.verify import verify_to_json, GATE_L2_MIN_ACCURACY, GATE_L2_MAX_GAP_PCT
+
+    print("=" * 70)
+    print("  GATE L2 — Lava / Loihi2 Cross-Backend Verification")
+    print("=" * 70)
+    print(f"  T={T}  batch_size={batch_size}")
+    print(f"  Targets: acc >= {GATE_L2_MIN_ACCURACY}%, gap <= {GATE_L2_MAX_GAP_PCT}%")
+    print()
+
+    # Load MLP MNIST SNN (local checkpoint, HuggingFace, or repo npz fallback)
+    print("[1/3] Loading neurocuda/mlp-mnist-snn ...")
+    from neurocuda.hub import _build_model
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = _build_model("neurocuda/mlp-mnist-snn", device)
+    info = nc.hub.info("neurocuda/mlp-mnist-snn")
+    weights_loaded = False
+
+    weight_path = Path("checkpoints/hub/mlp_mnist_snn.pt")
+    if weight_path.exists():
+        try:
+            state = torch.load(weight_path, map_location=device, weights_only=True)
+            model.load_state_dict(state, strict=True)
+            weights_loaded = True
+            info["weights_source"] = "local"
+        except Exception as exc:
+            print(f"  Local checkpoint incompatible: {exc}")
+
+    if not weights_loaded:
+        try:
+            model, info = nc.hub.load("neurocuda/mlp-mnist-snn")
+            weights_loaded = info.get("weights_loaded", False)
+        except Exception as exc:
+            print(f"  Hub load failed: {exc}")
+
+    npz_path = Path("mlp_mnist_weights.npz")
+    if not weights_loaded and npz_path.exists():
+        print(f"  Fallback: loading weights from {npz_path}")
+        import numpy as np
+
+        model = _build_model("neurocuda/mlp-mnist-snn", device)
+        data = np.load(npz_path)
+        state = {
+            "fc1.weight": torch.from_numpy(data["fc1_weight"]),
+            "fc1.bias": torch.from_numpy(data["fc1_bias"]),
+            "fc2.weight": torch.from_numpy(data["fc2_weight"]),
+            "fc2.bias": torch.from_numpy(data["fc2_bias"]),
+            "fc3.weight": torch.from_numpy(data["fc3_weight"]),
+            "fc3.bias": torch.from_numpy(data["fc3_bias"]),
+        }
+        model.load_state_dict(state, strict=False)
+        weights_loaded = True
+        info["weights_loaded"] = True
+        info["weights_source"] = str(npz_path)
+
+    if not weights_loaded:
+        print("  FATAL: No weights loaded — GATE L2 requires trained MLP MNIST checkpoint.")
+        print(f"  Expected: {weight_path} or {npz_path}")
+        print("  Run: python scripts/export_hub_models.py --model mnist")
+        return False
+
+    model = model.to(device).eval()
+
+    print(f"  Weights: {info.get('weights_source', 'unknown')}")
+    print(f"  Hub SNN accuracy (reported): {info.get('snn_accuracy', 'N/A')}%")
+    print()
+
+    # Full MNIST test set (10,000 images)
+    print("[2/3] Loading MNIST test set (10,000 images)...")
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,)),
+        transforms.Lambda(lambda x: x.view(-1)),  # flatten to 784
+    ])
+    test_ds = datasets.MNIST(root="./data", train=False, download=True, transform=transform)
+    if max_samples is not None:
+        test_ds = torch.utils.data.Subset(test_ds, range(min(max_samples, len(test_ds))))
+    test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
+    print(f"  Test samples: {len(test_ds)}")
+    print()
+
+    # Cross-backend verify
+    print("[3/3] Running nc.verify() across backends...")
+    report = nc.verify(
+        model,
+        test_loader,
+        backends=["gpu", "cpu", "loihi", "loihi2_lava"],
+        T=T,
+        gate_l2=True,
+    )
+
+    out = Path(out_path)
+    verify_to_json(report, out)
+    print(f"  Report written: {out}")
+    print()
+
+    # Summary table
+    print(f"{'Backend':<16} {'Status':<8} {'Accuracy':>10} {'Gap vs GPU':>12}")
+    print("-" * 50)
+    ref = report["backends"].get("gpu", {}).get("accuracy")
+    for name in ("gpu", "cpu", "loihi", "loihi2_lava"):
+        entry = report["backends"].get(name, {})
+        status = entry.get("status", "?")
+        acc = entry.get("accuracy")
+        acc_s = f"{acc:.2f}%" if acc is not None else "—"
+        gap = report.get("gaps_vs_reference", {}).get(name, 0.0)
+        gap_s = f"{gap:+.2f}%" if acc is not None and name != "gpu" else "—"
+        mode = entry.get("execution_mode", "")
+        if mode:
+            acc_s += f"  [{mode}]"
+        print(f"{name:<16} {status:<8} {acc_s:>10} {gap_s:>12}")
+
+    l2 = report["gates"]["L2"]
+    print()
+    if l2["passed"]:
+        print(f"  GATE L2: PASS")
+    else:
+        print(f"  GATE L2: FAIL")
+        for reason in l2.get("reasons", []):
+            print(f"    - {reason}")
+
+    print(f"{'='*70}\n")
+    return report["passed"]
+
+
+# ===========================================================================
 # Main
 # ===========================================================================
 
@@ -775,7 +917,7 @@ Examples:
   python reproduce.py --quick            # Fast verification (NMNIST only)
   python reproduce.py --demo             # Robotics pipeline only
   python reproduce.py --benchmarks nmnist cartpole  # Specific benchmarks
-  python reproduce.py --list             # List available benchmarks
+  python reproduce.py --lava-gate         # GATE L2: MLP MNIST cross-backend verify
         """
     )
     parser.add_argument("--quick", action="store_true",
@@ -785,6 +927,12 @@ Examples:
     parser.add_argument("--benchmarks", nargs="+",
                        choices=list(BENCHMARKS.keys()),
                        help="Specific benchmarks to run")
+    parser.add_argument("--lava-gate", action="store_true",
+                       help="GATE L2: MLP MNIST cross-backend verify (gpu/cpu/loihi/loihi2_lava)")
+    parser.add_argument("--lava-T", type=int, default=32,
+                       help="Timesteps for --lava-gate (default: 32)")
+    parser.add_argument("--lava-max-samples", type=int, default=None,
+                       help="Limit MNIST test samples for --lava-gate (default: full 10K)")
     parser.add_argument("--list", action="store_true",
                        help="List available benchmarks and exit")
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2],
@@ -792,6 +940,14 @@ Examples:
     parser.add_argument("--n-train", type=int, default=20000,
                        help="Training samples for NMNIST (default: 20000)")
     args = parser.parse_args()
+
+    # --lava-gate (GATE L2)
+    if args.lava_gate:
+        ok = run_lava_gate(
+            T=args.lava_T,
+            max_samples=args.lava_max_samples,
+        )
+        return 0 if ok else 1
 
     # --list
     if args.list:

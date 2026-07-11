@@ -4,6 +4,8 @@ Backends:
     gpu        — snnTorch CUDA-accelerated simulator (default)
     cpu        — Pure PyTorch CPU inference
     loihi      — Loihi 2 bit-accurate simulator (8-bit weights, validated vs Lava)
+    loihi2_lava — Loihi 2 via Lava NIR import (Loihi2SimCfg; INRC for Hw)
+    loihi2_hw   — Physical Loihi 2 via Lava Loihi2HwCfg (INRC required)
     spinnaker   — SpiNNaker-1 digital silicon (Manchester, NMPI queue)   [PHYSICAL]
     brainscales2 — BrainScaleS-2 analog silicon (Heidelberg, EBRAINS Lab) [PHYSICAL]
 """
@@ -12,6 +14,7 @@ from .cpu import CPUBackend
 from .loihi import LoihiBackend
 from .spinnaker import SpiNNakerBackend
 from .brainscales import BrainScaleS2Backend
+from .loihi2_lava import Loihi2LavaBackend, Loihi2HwBackend
 
 BACKENDS = {
     # Simulators
@@ -19,6 +22,8 @@ BACKENDS = {
     "cpu": CPUBackend,
     "loihi": LoihiBackend,
     "loihi3": LoihiBackend,
+    "loihi2_lava": Loihi2LavaBackend,
+    "loihi2_hw": Loihi2HwBackend,
     "simulator": GPUBackend,
     # Physical silicon
     "spinnaker": SpiNNakerBackend,

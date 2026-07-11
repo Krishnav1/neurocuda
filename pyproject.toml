@@ -44,6 +44,7 @@ all = [
     "torchvision>=0.15",
 ]
 nir = ["nir>=1.0", "nirtorch>=2.6"]
+lava = ["nir>=1.0", "nirtorch>=2.6"]  # lava-nc: install separately on Py3.10 INRC Linux
 neurobench = ["neurobench>=2.3"]
 rl = ["gymnasium>=1.0"]
 data = ["tonic>=1.0", "torchvision>=0.15"]

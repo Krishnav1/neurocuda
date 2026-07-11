@@ -38,7 +38,7 @@ class LoihiBackend:
         self.thr_bits = thr_bits
         self._quantized = False
 
-    def compile(self, snn_model) -> Any:
+    def compile(self, snn_model, **kwargs) -> Any:
         """Quantize weights to Loihi 2 precision (8-bit signed per-channel)."""
         self._quantize_weights(snn_model)
         self._quantized = True
@@ -66,12 +66,37 @@ class LoihiBackend:
                 w_q = torch.clamp(w_q, -(2**(self.weight_bits - 1) - 1), 2**(self.weight_bits - 1) - 1)
                 param.data = w_q * scale
 
+    @staticmethod
+    def _out_features(model) -> int:
+        import torch.nn as nn
+        for module in reversed(list(model.modules())):
+            if isinstance(module, nn.Linear):
+                return module.out_features
+        return 10
+
     def run(self, compiled_model, input_data, T: int = 64):
         """Run SNN inference with Loihi 2 precision."""
+        try:
+            from models import IFNeuron, LIFNeuron, reset_spiking
+        except ImportError:
+            from ..models import IFNeuron, LIFNeuron, reset_spiking  # type: ignore
+
         compiled_model.to(input_data.device)
+        is_spiking = any(
+            isinstance(m, (IFNeuron, LIFNeuron)) for m in compiled_model.modules()
+        )
         with torch.no_grad():
-            out = compiled_model(input_data)
-        return out
+            if is_spiking and input_data.dim() == 2:
+                reset_spiking(compiled_model)
+                acc = torch.zeros(
+                    input_data.size(0),
+                    self._out_features(compiled_model),
+                    device=input_data.device,
+                )
+                for _ in range(T):
+                    acc += compiled_model(input_data)
+                return acc / T
+            return compiled_model(input_data)
 
     def estimate_energy(self, model, input_shape=(1, 3, 32, 32), T=64) -> Dict:
         """

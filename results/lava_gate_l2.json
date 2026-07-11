@@ -1,0 +1,50 @@
+{
+  "timestamp": "2026-06-28T21:56:52Z",
+  "T": 32,
+  "reference": "gpu",
+  "backends": {
+    "gpu": {
+      "status": "ok",
+      "accuracy": 93.7,
+      "correct": 937,
+      "total": 1000
+    },
+    "cpu": {
+      "status": "ok",
+      "accuracy": 93.7,
+      "correct": 937,
+      "total": 1000
+    },
+    "loihi": {
+      "status": "ok",
+      "accuracy": 93.5,
+      "correct": 935,
+      "total": 1000
+    },
+    "loihi2_lava": {
+      "status": "ok",
+      "accuracy": 93.5,
+      "correct": 935,
+      "total": 1000,
+      "execution_mode": "neurocuda_loihi_sim"
+    }
+  },
+  "gates": {
+    "L2": {
+      "passed": false,
+      "min_accuracy": 95.4,
+      "max_gap_pct": 2.0,
+      "reasons": [
+        "loihi accuracy 93.50% < 95.4%",
+        "loihi2_lava accuracy 93.50% < 95.4%"
+      ]
+    }
+  },
+  "passed": false,
+  "gaps_vs_reference": {
+    "gpu": 0.0,
+    "cpu": 0.0,
+    "loihi": 0.20000000000000284,
+    "loihi2_lava": 0.20000000000000284
+  }
+}
