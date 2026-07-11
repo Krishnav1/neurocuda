@@ -361,6 +361,41 @@ def search(query):
     return results
 
 
+def _normalize_state_dict(state_dict, model):
+    """Map common export aliases (relu*/act*) onto hub IF/LIF module names."""
+    model_keys = set(model.state_dict().keys())
+    if set(state_dict.keys()) <= model_keys:
+        return state_dict
+
+    remapped = {}
+    for key, value in state_dict.items():
+        new_key = key
+        for old, new in (
+            ("relu1.", "if1."),
+            ("relu2.", "if2."),
+            ("relu3.", "if3."),
+            ("act1.", "if1."),
+            ("act2.", "if2."),
+            ("act3.", "if3."),
+        ):
+            if new_key.startswith(old):
+                new_key = new + new_key[len(old) :]
+                break
+        remapped[new_key] = value
+
+    # Keep only keys the model expects; ignore extras
+    filtered = {k: v for k, v in remapped.items() if k in model_keys}
+    missing = model_keys - set(filtered.keys())
+    # Thresholds may be missing from pure weight dumps — leave module defaults
+    soft_missing = {k for k in missing if k.endswith(".thresh")}
+    hard_missing = missing - soft_missing
+    if hard_missing:
+        raise RuntimeError(
+            f"Checkpoint missing required keys after remap: {sorted(hard_missing)}"
+        )
+    return filtered
+
+
 def load(model_name, device=None, use_hf=True):
     """Load a pre-converted spiking neural network.
 
@@ -395,13 +430,17 @@ def load(model_name, device=None, use_hf=True):
 
     # 1. Try local checkpoint
     if os.path.exists(weight_path):
-        state_dict = torch.load(weight_path, map_location=device, weights_only=True)
-        model.load_state_dict(state_dict)
-        weights_loaded = True
-        model_info["weights_source"] = "local"
+        try:
+            state_dict = torch.load(weight_path, map_location=device, weights_only=True)
+            state_dict = _normalize_state_dict(state_dict, model)
+            model.load_state_dict(state_dict, strict=False)
+            weights_loaded = True
+            model_info["weights_source"] = "local"
+        except Exception as e:
+            print(f"  Local checkpoint load failed: {e}")
 
     # 2. Try HuggingFace Hub
-    elif use_hf:
+    if not weights_loaded and use_hf:
         try:
             from huggingface_hub import hf_hub_download
             # Map model name to HF repo: neurocuda/cnn-nmnist-snn → Krishnav1234/neurocuda-cnn-nmnist-snn
@@ -417,12 +456,13 @@ def load(model_name, device=None, use_hf=True):
                 cache_dir=os.path.join(os.path.dirname(weight_path), ".hf_cache"),
             )
             state_dict = torch.load(hf_path, map_location=device, weights_only=True)
-            model.load_state_dict(state_dict)
+            state_dict = _normalize_state_dict(state_dict, model)
+            model.load_state_dict(state_dict, strict=False)
             weights_loaded = True
             model_info["weights_source"] = "huggingface"
-            # Cache locally for next time
+            # Cache locally for next time (canonical if* keys)
             os.makedirs(os.path.dirname(weight_path), exist_ok=True)
-            torch.save(state_dict, weight_path)
+            torch.save(model.state_dict(), weight_path)
         except ImportError:
             print("  Tip: pip install huggingface_hub to download models from HuggingFace")
         except Exception as e:
@@ -438,6 +478,11 @@ def load(model_name, device=None, use_hf=True):
         print(f"  Generate: python scripts/export_hub_models.py")
     else:
         model_info["weights_loaded"] = True
+        # Rewrite local checkpoint in canonical if* form when remapped
+        try:
+            torch.save(model.state_dict(), weight_path)
+        except Exception:
+            pass
 
     model = model.to(device).eval()
     return model, model_info

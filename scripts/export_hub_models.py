@@ -328,10 +328,15 @@ def export_mlp_mnist_snn():
     if_acc = stats["if_accuracy"]
     print(f"  IF: {if_acc:.2f}% | Gap: {ann_acc - if_acc:.2f}%")
 
-    # Save
+    # Save under canonical hub names (if1/if2), not export-time relu* names
     os.makedirs("./checkpoints/hub", exist_ok=True)
     save_path = "./checkpoints/hub/mlp_mnist_snn.pt"
-    torch.save(snn_model.state_dict(), save_path)
+    state = snn_model.state_dict()
+    canonical = {}
+    for k, v in state.items():
+        nk = k.replace("relu1.", "if1.").replace("relu2.", "if2.")
+        canonical[nk] = v
+    torch.save(canonical, save_path)
 
     card = {
         "name": "neurocuda/mlp-mnist-snn",

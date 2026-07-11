@@ -1,50 +1,47 @@
 {
-  "timestamp": "2026-06-28T21:56:52Z",
+  "timestamp": "2026-07-11T10:41:48Z",
   "T": 32,
   "reference": "gpu",
   "backends": {
     "gpu": {
       "status": "ok",
-      "accuracy": 93.7,
-      "correct": 937,
-      "total": 1000
+      "accuracy": 96.72,
+      "correct": 9672,
+      "total": 10000
     },
     "cpu": {
       "status": "ok",
-      "accuracy": 93.7,
-      "correct": 937,
-      "total": 1000
+      "accuracy": 96.72,
+      "correct": 9672,
+      "total": 10000
     },
     "loihi": {
       "status": "ok",
-      "accuracy": 93.5,
-      "correct": 935,
-      "total": 1000
+      "accuracy": 96.69,
+      "correct": 9669,
+      "total": 10000
     },
     "loihi2_lava": {
       "status": "ok",
-      "accuracy": 93.5,
-      "correct": 935,
-      "total": 1000,
+      "accuracy": 96.69,
+      "correct": 9669,
+      "total": 10000,
       "execution_mode": "neurocuda_loihi_sim"
     }
   },
   "gates": {
     "L2": {
-      "passed": false,
+      "passed": true,
       "min_accuracy": 95.4,
       "max_gap_pct": 2.0,
-      "reasons": [
-        "loihi accuracy 93.50% < 95.4%",
-        "loihi2_lava accuracy 93.50% < 95.4%"
-      ]
+      "reasons": []
     }
   },
-  "passed": false,
+  "passed": true,
   "gaps_vs_reference": {
     "gpu": 0.0,
     "cpu": 0.0,
-    "loihi": 0.20000000000000284,
-    "loihi2_lava": 0.20000000000000284
+    "loihi": 0.030000000000001137,
+    "loihi2_lava": 0.030000000000001137
   }
 }

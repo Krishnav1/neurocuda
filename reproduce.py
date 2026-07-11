@@ -787,36 +787,17 @@ def run_lava_gate(T=32, batch_size=256, max_samples=None, out_path="results/lava
     print(f"  Targets: acc >= {GATE_L2_MIN_ACCURACY}%, gap <= {GATE_L2_MAX_GAP_PCT}%")
     print()
 
-    # Load MLP MNIST SNN (local checkpoint, HuggingFace, or repo npz fallback)
+    # Load MLP MNIST SNN via hub (remaps relu*→if* checkpoint aliases)
     print("[1/3] Loading neurocuda/mlp-mnist-snn ...")
-    from neurocuda.hub import _build_model
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = _build_model("neurocuda/mlp-mnist-snn", device)
-    info = nc.hub.info("neurocuda/mlp-mnist-snn")
-    weights_loaded = False
-
-    weight_path = Path("checkpoints/hub/mlp_mnist_snn.pt")
-    if weight_path.exists():
-        try:
-            state = torch.load(weight_path, map_location=device, weights_only=True)
-            model.load_state_dict(state, strict=True)
-            weights_loaded = True
-            info["weights_source"] = "local"
-        except Exception as exc:
-            print(f"  Local checkpoint incompatible: {exc}")
-
-    if not weights_loaded:
-        try:
-            model, info = nc.hub.load("neurocuda/mlp-mnist-snn")
-            weights_loaded = info.get("weights_loaded", False)
-        except Exception as exc:
-            print(f"  Hub load failed: {exc}")
+    model, info = nc.hub.load("neurocuda/mlp-mnist-snn")
+    weights_loaded = info.get("weights_loaded", False)
 
     npz_path = Path("mlp_mnist_weights.npz")
     if not weights_loaded and npz_path.exists():
         print(f"  Fallback: loading weights from {npz_path}")
         import numpy as np
+        from neurocuda.hub import _build_model
 
         model = _build_model("neurocuda/mlp-mnist-snn", device)
         data = np.load(npz_path)
@@ -835,7 +816,7 @@ def run_lava_gate(T=32, batch_size=256, max_samples=None, out_path="results/lava
 
     if not weights_loaded:
         print("  FATAL: No weights loaded — GATE L2 requires trained MLP MNIST checkpoint.")
-        print(f"  Expected: {weight_path} or {npz_path}")
+        print("  Expected: checkpoints/hub/mlp_mnist_snn.pt or mlp_mnist_weights.npz")
         print("  Run: python scripts/export_hub_models.py --model mnist")
         return False
 

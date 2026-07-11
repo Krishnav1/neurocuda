@@ -878,7 +878,7 @@ NeuroCUDA is a **systems/tooling contribution** — it integrates existing publi
 
 4. **FPGA deployment:** HLS C++ is generated but not yet synthesized to a physical bitstream. The FPGA pipeline is a proof-of-concept.
 
-5. **Loihi 2:** Simulator-validated only. Not tested on physical Intel Loihi 2 silicon. No Lava SDK integration yet. INRC application path available (inrc_interest@intel.com) for real silicon access.
+5. **Loihi 2:** Simulator path validated (bit-exact IF math + `loihi2_lava` NIR export). Physical Loihi 2 silicon not yet run — needs INRC + Lava Loihi extension (`loihi2_hw`). When Lava SDK is missing, `loihi2_lava` honestly falls back to NeuroCUDA Loihi quant sim (`execution_mode: neurocuda_loihi_sim`). See [`docs/LAVA_SETUP.md`](docs/LAVA_SETUP.md).
 
 6. **SpiNNaker-1:** Code compiles and generates valid sPyNNaker scripts. Hardware execution blocked by EBRAINS NMPI queue dispatch (jobs accepted, quota approved, not yet dispatched). See `support@ebrains.eu`.
 
