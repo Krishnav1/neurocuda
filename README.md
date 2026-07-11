@@ -866,6 +866,20 @@ NeuroCUDA is a **systems/tooling contribution** — it integrates existing publi
 - **Integrated pipeline**: QCFS → IF → BPTT FT → measure → NIR export → compile — all in one `convert()` call.
 - **Verified honest numbers**: Full test sets, 3 seeds, documented limitations. No cherry-picking.
 
+### Head-to-head: MLP MNIST vs SNNToolBox-style conversion (July 11, 2026)
+
+Same ANN weights (Keras MLP 784→256→256→10, 5 epochs), same T=32, **full 10,000 MNIST test images**.
+
+| Method | SNN accuracy | Gap vs ANN (97.48%) | Notes |
+|--------|--------------|---------------------|--------|
+| **NeuroCUDA** (QCFS→IF + BPTT FT) | **96.87%** | **+0.61%** | NIR export, multi-backend, `nc.verify()` |
+| SNNToolBox-style rate (percentile IF) | **97.45%** | **+0.03%** | Rueckauer-style reimplementation |
+| Official `snntoolbox` 0.6.0 | — | — | **Fails on Keras 3.x** (`loss_weights` error) |
+
+Reproduce: `python scripts/compare_snntoolbox_mlp_mnist.py` → `results/compare_snntoolbox_mlp_mnist.json`.
+
+On this shallow MLP, classic rate conversion retains accuracy well. NeuroCUDA's advantage is the **full stack** (QCFS+FT pipeline, residual NIR, Loihi sim parity, ROS2) — not always a smaller CIFAR/MNIST gap than rate coding. Deeper nets (ResNet-18 CIFAR-10 gap 0.95%) are where QCFS matters more.
+
 ---
 
 ## Known Limitations

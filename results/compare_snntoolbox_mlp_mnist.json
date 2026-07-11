@@ -1,0 +1,66 @@
+{
+  "timestamp": "2026-07-11T11:00:33Z",
+  "protocol": {
+    "architecture": "MLP 784\u2192256\u2192256\u219210 ReLU",
+    "dataset": "MNIST test",
+    "num_tested": 10000,
+    "T": 32,
+    "seed": 0,
+    "same_ann_weights": true,
+    "ann_train_epochs": 5
+  },
+  "ann_accuracy_keras": 97.47999906539917,
+  "ann_accuracy_pytorch_copy": 97.48,
+  "neurocuda": {
+    "tool": "neurocuda",
+    "method": "QCFS\u2192IF + BPTT FT",
+    "snn_accuracy": 96.87,
+    "convert_stats": {
+      "qcfs_accuracy": 98.41,
+      "if_accuracy": 96.11
+    },
+    "T": 32,
+    "convert_seconds": 15.847368399961852,
+    "infer_seconds": 1.3638461000518873,
+    "num_tested": 10000,
+    "features": {
+      "nir_export": true,
+      "multi_backend": true,
+      "loihi_sim": true,
+      "ros2": true
+    }
+  },
+  "snntoolbox_style_rate": {
+    "tool": "snntoolbox_style_rate",
+    "method": "percentile-99.9 weight-norm + IF (Rueckauer-style reimpl)",
+    "snn_accuracy": 97.45,
+    "thresholds": {
+      "relu1": 9.919180870056152,
+      "relu2": 10.234200477600098
+    },
+    "T": 32,
+    "infer_seconds": 1.3641809000400826,
+    "num_tested": 10000,
+    "status": "ok",
+    "note": "Official snntoolbox 0.6.0 fails on Keras 3.x; this reimplements the standard rate-conversion path for a fair method comparison."
+  },
+  "snntoolbox_official": {
+    "tool": "snntoolbox",
+    "method": "weight-normalize + INIsim (official)",
+    "status": "error",
+    "error": "ValueError: `loss_weights` must match the number of losses, got 1 losses and 2 weights.",
+    "T": 32,
+    "convert_and_sim_seconds": 0.3307759000454098,
+    "num_tested": 10000,
+    "work_dir": "C:\\neurocuda\\results\\snntoolbox_cmp",
+    "features": {
+      "nir_export": false,
+      "multi_backend": "pyNN/Loihi export (vendor paths)",
+      "ros2": false
+    }
+  },
+  "gaps_vs_ann": {
+    "neurocuda": 0.6099990653991654,
+    "snntoolbox_style_rate": 0.02999906539916708
+  }
+}
