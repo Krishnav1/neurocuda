@@ -1,0 +1,29 @@
+NEUROCUDA SPINNAKER VALIDATION — JOB #420186
+=============================================
+Date submitted:  2026/07/17 09:34:38
+Date completed:  2026/07/17 09:35:48
+Hardware:        SpiNNaker-1, University of Manchester
+Board IP:        10.11.196.49
+Chips detected:  48 chips, 851 cores
+Firmware:        SC&MP 4.0.0 (built Fri Nov 17 09:35:48 2023)
+Script:          run.py (4-neuron PyNN network)
+Simulation time: 10ms @ 1ms timestep
+
+RESULTS:
+  Neuron 0: 2 spikes
+  Neuron 1: 2 spikes
+  Total spikes: 4
+  Status: SUCCESS
+
+NETWORK:
+  Input:  2 SpikeSourceArray neurons
+  Output: 2 IF_curr_exp (LIF) neurons
+  Synapse: OneToOne, weight=5.0, delay=1.0ms
+
+WARNING (cosmetic only):
+  "cfg has no version" — does not affect computation
+
+COMPARISON WITH JOB #420148 (2026/07/13):
+  Job #420148: Board 10.11.242.169, 43 chips — SUCCESS
+  Job #420186: Board 10.11.196.49,  48 chips — SUCCESS
+  Two independent boards, identical results. CONFIRMED.

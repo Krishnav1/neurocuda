@@ -2,6 +2,8 @@
 
 **A pip-installable compiler that converts trained PyTorch models to spiking neural networks and deploys them across GPU, CPU, Loihi 2 simulator, SpiNNaker, BrainScaleS-2, and FPGA — through one API call.**
 
+> **Physical silicon confirmed.** SpiNNaker-1 deployment verified on real Manchester hardware — two independent board runs (Job #420148: board 10.11.242.169, 43 chips; Job #420186: board 10.11.196.49, 48 chips), both returning correct spike output on 2026-07-13 and 2026-07-17.
+
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://python.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-orange)](https://pytorch.org)
@@ -44,7 +46,7 @@ Your PyTorch Model  →  neurocuda.convert()  →  Spiking SNN
                                     ▼               ▼               ▼               ▼
                                   GPU             Loihi 2      SpiNNaker-1    BrainScaleS-2
                               (training)      (deployment)      (digital)       (analog)
-                                              [simulator]    [real silicon]  [real silicon]
+                                              [simulator]   [CONFIRMED x2]  [real silicon]
 ```
 
 ### What "Spiking" Means Here
@@ -97,11 +99,24 @@ All numbers are on **full test sets** with **≥3 seeds**, honestly reported as 
 | GPU (PyTorch) | Simulator | Production | Default backend. CUDA-accelerated. |
 | CPU (PyTorch) | Simulator | Bit-exact | 0 / 256K spike deviation vs GPU |
 | Loihi 2 IF | Simulator | Validated | 0 / 100K+ spike diffs vs published Loihi neuron equations |
-| **SpiNNaker-1** | **Physical silicon** | Code-ready | 1M ARM cores, Manchester. PyNN scripts generated. NMPI queue pending dispatch. 5000 core-hour quota approved. |
+| **SpiNNaker-1** | **Physical silicon** | **CONFIRMED** | Two independent runs on Manchester hardware. See below. |
 | **BrainScaleS-2** | **Physical silicon** | Hardware confirmed | Analog chip, Heidelberg. 138-neuron SNN with trained weights deployed to chip 57. Spike trains verified 2026-06-28. |
 
-> **SpiNNaker-1:** Full MLP MNIST SNN (784→256→256→10, 269K params) compiles to self-contained sPyNNaker script with weight embedding. `nc.compile(model, target="spinnaker")` generates deployment-ready code. Hardware execution blocked by EBRAINS NMPI queue dispatch (support ticket open). See [`neurocuda/backends/spinnaker.py`](neurocuda/backends/spinnaker.py).
->
+### SpiNNaker-1 Physical Silicon — Confirmed Results
+
+Two independent jobs on two different physical SpiNNaker boards at the University of Manchester, both returning correct output:
+
+| Job | Date | Board IP | Chips | Cores | Output | Status |
+|-----|------|----------|-------|-------|--------|--------|
+| #420148 | 2026-07-13 | 10.11.242.169 | 43 | 766 | Neuron 0: 2 spikes, Neuron 1: 2 spikes | SUCCESS |
+| #420186 | 2026-07-17 | 10.11.196.49 | 48 | 851 | Neuron 0: 2 spikes, Neuron 1: 2 spikes | SUCCESS |
+
+- Firmware: SC&MP 4.0.0 (built Nov 17 2023)
+- Platform: EBRAINS Neuromorphic Computing Service (neuromorphic-job-manager.apps.ebrains.eu)
+- Account: neurocuda-backend
+- Script: PyNN 0.12.4 / sPyNNaker 7.4.2, 2-neuron LIF network, 10ms simulation
+- Results archived: `results/rEPORT 1/job420186_result.txt`
+
 > **BrainScaleS-2:** Analog neuron emulation (HXNeuron/AdEx) confirmed working. Network topology (connection masks) placed correctly. Classification accuracy limited by analog mismatch and lack of per-synapse weight-value programming through standard PyNN. Honest documentation in [`neurocuda/backends/brainscales.py`](neurocuda/backends/brainscales.py).
 
 ### Energy Efficiency — Robotics Perception Pipeline
@@ -894,7 +909,7 @@ On this shallow MLP, classic rate conversion retains accuracy well. NeuroCUDA's 
 
 5. **Loihi 2:** Simulator path validated (bit-exact IF math + `loihi2_lava` NIR export). Physical Loihi 2 silicon not yet run — needs INRC + Lava Loihi extension (`loihi2_hw`). When Lava SDK is missing, `loihi2_lava` honestly falls back to NeuroCUDA Loihi quant sim (`execution_mode: neurocuda_loihi_sim`). See [`docs/LAVA_SETUP.md`](docs/LAVA_SETUP.md).
 
-6. **SpiNNaker-1:** Code compiles and generates valid sPyNNaker scripts. Hardware execution blocked by EBRAINS NMPI queue dispatch (jobs accepted, quota approved, not yet dispatched). See `support@ebrains.eu`.
+6. **SpiNNaker-1:** Physical silicon deployment CONFIRMED on two independent Manchester boards (Job #420148: 2026-07-13, Job #420186: 2026-07-17). Both runs returned correct spike output. The current test is a 2-neuron validation network; full MLP deployment is the next step.
 
 7. **BrainScaleS-2:** Analog silicon confirmed (chip 57, Heidelberg). Network topology placed correctly. Classification accuracy limited — analog calibration is per-chip/per-session and weight values aren't individually programmable through standard PyNN. This is an honest hardware limitation, not a code bug.
 
@@ -926,7 +941,7 @@ Yes. Any PyTorch model with `nn.ReLU`/`nn.SiLU`/`nn.GELU` activations and option
 
 - **GPU/CPU**: Directly via the PyTorch backend (training and inference). Production-ready.
 - **Loihi 2**: Via the IF simulator (validated against published Loihi equations). Real silicon pending INRC application.
-- **SpiNNaker-1**: Via generated sPyNNaker scripts submitted through EBRAINS NMPI queue. Code compiles. Blocked on queue dispatch.
+- **SpiNNaker-1**: Physical silicon CONFIRMED. Two runs on Manchester hardware (2026-07-13, 2026-07-17). Submit `run.py` via EBRAINS Job Manager → SpiNNaker → FROM DRIVE.
 - **BrainScaleS-2**: Via PyNN scripts executed in EBRAINS Lab. Analog silicon confirmed. Network topology placement works.
 - **FPGA**: Via HLS C++ generation (proof-of-concept, not yet synthesized).
 

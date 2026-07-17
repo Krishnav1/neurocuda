@@ -50,7 +50,7 @@
 
 **Goal:** Build an honest, working seed. NOT beat SOTA accuracy. NOT claim novel science.
 
-## Current State (June 19, 2026)
+## Current State (July 17, 2026)
 
 ### Real Numbers (full test set, need multi-seed verification)
 - MLP/MNIST: ANN 97.8%, SNN 97.4%, gap 0.4% (1 seed)
@@ -63,6 +63,7 @@
 - Loihi 2 bit-accurate validation: 0/256K spike deviations
 - BN folding: lossless
 - Post-conversion fine-tuning: +7-52% gain
+- **SpiNNaker-1 physical silicon CONFIRMED**: Job #420148, Manchester board 10.11.242.169 (SC&MP 4.0.0, 43 chips, 766 cores). Ran 2-neuron PyNN test, got "Neuron 0: 2 spikes / Neuron 1: 2 spikes / SUCCESS". Completed 2026/07/13 08:25:19. Results zip: 420148/reports.zip on EBRAINS drive.
 
 ### Known Bugs
 - QCFS: λ frozen at ~1.0 for layers 1-2 (gradient/learning-rate bug)
